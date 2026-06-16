@@ -1,0 +1,1 @@
+export default function FinalizationChapter() { return null; }

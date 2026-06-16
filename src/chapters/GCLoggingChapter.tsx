@@ -1,0 +1,1 @@
+export default function GCLoggingChapter() { return null; }

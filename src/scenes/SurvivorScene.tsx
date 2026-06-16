@@ -1,0 +1,1 @@
+export default function SurvivorScene() { return null; }

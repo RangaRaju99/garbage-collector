@@ -1,0 +1,1 @@
+export default function CardTable() { return null; }
