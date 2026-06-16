@@ -1,172 +1,271 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, FlaskConical, Bug, Film, Compass } from 'lucide-react';
-import { Canvas } from '@react-three/fiber';
-import { Stars, OrbitControls, Environment } from '@react-three/drei';
+import {
+  BookOpen, FlaskConical, Bug, Film, Compass,
+  ArrowRight, Cpu, Zap, Shield, ChevronRight
+} from 'lucide-react';
 import { useJVMStore } from '../store/jvmStore';
 
-// Landing particle system (simplified Three.js scene just for hero BG)
-function HeroCityBackground() {
-  return (
-    <>
-      <Stars radius={80} depth={30} count={4000} factor={3} fade speed={0.5} />
-      <Environment preset="night" />
-      <ambientLight intensity={0.2} />
-      <pointLight position={[-10, 10, 5]} color="#00d4ff" intensity={3} distance={40} />
-      <pointLight position={[10, 5, -5]} color="#00ff88" intensity={2} distance={30} />
-      {/* Floating city grid */}
-      <gridHelper args={[50, 30, '#001133', '#001133']} position={[0, -3, 0]} />
-      <OrbitControls enableZoom={false} enablePan={false} autoRotate autoRotateSpeed={0.3} />
-    </>
-  );
-}
-
 const features = [
-  { icon: <Film size={20} />, title: '12-Scene Movie Mode', desc: 'Cinematic narrated walkthrough — object birth, GC robots, island collapse, PermGen explosion.' },
-  { icon: <Compass size={20} />, title: 'JVM City Explorer', desc: 'Free-roam Young Gen, Old Gen, Metaspace, Stack towers, String Pool. Click any element.' },
-  { icon: <FlaskConical size={20} />, title: 'Code Sandbox', desc: 'Write Java → watch allocations, GC, promotions happen live in the 3D city.' },
-  { icon: <Bug size={20} />, title: 'Detective Mode', desc: '5 real-world memory leak scenarios. Diagnose, investigate, then see the fix.' },
-  { icon: <BookOpen size={20} />, title: 'Interview Ready', desc: '25 animated JVM interview Q&As. Answer confidently after one session.' },
+  {
+    icon: Film,
+    title: 'Cinematic Movie Mode',
+    desc: '12 narrated scenes — object birth, GC robots, island collapse, PermGen explosion. Lean back and learn.',
+    tag: 'Interactive',
+  },
+  {
+    icon: Compass,
+    title: 'JVM City Explorer',
+    desc: 'Free-roam Eden, Old Gen, Metaspace, Stack towers, and String Pool. Click any element to inspect it.',
+    tag: 'Explore',
+  },
+  {
+    icon: FlaskConical,
+    title: 'Code Sandbox',
+    desc: 'Write Java → watch allocations, GC events, and promotions happen live in the 3D city.',
+    tag: 'Hands-On',
+  },
+  {
+    icon: Bug,
+    title: 'Detective Mode',
+    desc: '5 real-world memory leak scenarios. Diagnose the root cause, then see the production-ready fix.',
+    tag: 'Diagnostic',
+  },
+  {
+    icon: BookOpen,
+    title: 'Interview Preparation',
+    desc: '25 animated JVM interview Q&As with visual explanations. Answer with confidence.',
+    tag: 'Learning',
+  },
+  {
+    icon: Zap,
+    title: 'GC Algorithm Lab',
+    desc: 'Compare Serial, G1, ZGC, Shenandoah side-by-side. See pause times, throughput, and heap layouts.',
+    tag: 'Analysis',
+  },
 ];
+
+const stats = [
+  { val: '42', label: 'Learning Modules' },
+  { val: '7', label: 'GC Algorithms' },
+  { val: '12', label: 'Cinematic Scenes' },
+  { val: '5', label: 'Leak Scenarios' },
+];
+
+const gcAlgorithms = ['Serial GC', 'Parallel GC', 'CMS', 'G1 GC', 'ZGC', 'Shenandoah', 'Epsilon'];
 
 export default function LandingPage() {
   const setStarted = useJVMStore(state => state.setStarted);
-  const [hovered, setHovered] = useState(false);
-  const heroRef = useRef<HTMLDivElement>(null);
+  const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col overflow-x-hidden relative">
-      {/* Hero 3D Background */}
-      <div className="absolute inset-0 z-0 pointer-events-none opacity-60">
-        <Canvas camera={{ position: [0, 5, 20], fov: 60 }}>
-          <HeroCityBackground />
-        </Canvas>
-      </div>
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col overflow-y-auto font-sans">
+      
+      {/* Navbar */}
+      <nav className="sticky top-0 z-50 flex items-center justify-between px-8 py-4 border-b border-white/5 bg-zinc-950/80 backdrop-blur-xl">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center">
+            <Cpu size={13} className="text-blue-400" />
+          </div>
+          <span className="text-[14px] font-bold tracking-tight text-white">Inside the JVM</span>
+        </div>
 
-      {/* Nav */}
-      <nav className="relative z-10 flex items-center justify-between px-8 py-5 border-b border-[rgba(0,212,255,0.1)]">
-        <div className="flex items-center gap-3">
-          <div className="w-2.5 h-2.5 rounded-full bg-[#00d4ff] animate-pulse shadow-[0_0_10px_#00d4ff]" />
-          <span className="font-bold text-[#00d4ff] text-sm tracking-wide">Inside the JVM</span>
+        <div className="hidden md:flex items-center gap-1 bg-white/[0.03] p-1 rounded-lg border border-white/6 text-[11px]">
+          {['Curriculum', 'GC Algorithms', 'Detective Mode', 'Sandbox'].map(item => (
+            <button
+              key={item}
+              className="px-3 py-1.5 rounded-md text-zinc-500 hover:text-zinc-200 hover:bg-white/5 transition-all font-medium"
+            >
+              {item}
+            </button>
+          ))}
         </div>
-        <div className="flex items-center gap-6 text-xs text-gray-400">
-          <span className="hover:text-white cursor-pointer transition">Curriculum</span>
-          <span className="hover:text-white cursor-pointer transition">GC Algorithms</span>
-          <span className="hover:text-white cursor-pointer transition">Detective Mode</span>
-          <button
-            onClick={() => setStarted(true)}
-            className="px-4 py-1.5 bg-[rgba(0,212,255,0.15)] border border-[rgba(0,212,255,0.4)] rounded text-[#00d4ff] hover:bg-[rgba(0,212,255,0.25)] transition font-bold"
-          >
-            Launch App
-          </button>
-        </div>
+
+        <button
+          onClick={() => setStarted(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-[12px] font-bold hover:bg-blue-500 transition-all shadow-lg shadow-blue-900/30"
+        >
+          Launch App <ArrowRight size={13} />
+        </button>
       </nav>
 
       {/* Hero */}
-      <section ref={heroRef} className="relative z-10 flex flex-col items-center justify-center text-center px-6 pt-28 pb-20">
+      <section className="flex flex-col items-center text-center px-6 pt-20 pb-16 relative">
+        {/* Subtle grid background */}
+        <div
+          className="absolute inset-0 opacity-[0.02] pointer-events-none"
+          style={{
+            backgroundImage: 'linear-gradient(rgba(255,255,255,.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.5) 1px, transparent 1px)',
+            backgroundSize: '40px 40px',
+          }}
+        />
+
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="max-w-4xl"
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          className="max-w-4xl relative"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[rgba(0,212,255,0.08)] border border-[rgba(0,212,255,0.2)] rounded-full text-xs text-[#00d4ff] font-mono mb-8">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            Simulation Engine Active · 60 FPS · WebGL
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-[11px] text-blue-400 font-semibold mb-8">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Simulation Engine Active — WebGL · 60 FPS
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-black leading-tight mb-6 tracking-tight">
+          <h1 className="text-5xl md:text-6xl font-black leading-[1.05] tracking-tight mb-6">
             <span className="text-white">See Garbage Collection.</span>
             <br />
-            <span style={{ background: 'linear-gradient(135deg, #00d4ff, #00ff88)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              Don't Just Read About It.
-            </span>
+            <span className="text-blue-400">Don't Just Read About It.</span>
           </h1>
 
-          <p className="text-lg text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-            Walk inside a living JVM city. Watch objects be born in Eden, age through Survivor spaces,
-            get promoted to Old Gen — then be swept away by GC robots. Understand JVM internals in 30 minutes
+          <p className="text-lg text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+            Walk inside a living JVM. Watch objects be born in Eden, age through Survivor spaces,
+            get promoted to Old Gen — then be collected by GC robots. Understand JVM internals in 30 minutes
             better than 300 pages of documentation.
           </p>
 
-          <div className="flex items-center justify-center gap-4 flex-wrap">
+          <div className="flex items-center justify-center gap-4">
             <motion.button
-              onHoverStart={() => setHovered(true)}
-              onHoverEnd={() => setHovered(false)}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => setStarted(true)}
-              className="relative px-8 py-4 text-base font-bold rounded-xl overflow-hidden transition-all"
-              style={{
-                background: 'linear-gradient(135deg, #00d4ff22, #00ff8822)',
-                border: '1px solid rgba(0,212,255,0.5)',
-                boxShadow: hovered ? '0 0 40px rgba(0,212,255,0.4), 0 0 80px rgba(0,212,255,0.2)' : '0 0 20px rgba(0,212,255,0.2)'
-              }}
+              className="flex items-center gap-2.5 px-8 py-4 bg-blue-600 text-white rounded-xl text-[14px] font-bold hover:bg-blue-500 transition-all shadow-xl shadow-blue-900/40"
             >
-              <span className="relative z-10 text-white flex items-center gap-2">
-                ▶ Enter the JVM City
-              </span>
+              <span>▶ Enter the JVM</span>
+              <ArrowRight size={16} />
             </motion.button>
 
-            <button className="px-8 py-4 text-base font-bold rounded-xl border border-[rgba(255,255,255,0.1)] text-gray-300 hover:text-white hover:border-[rgba(255,255,255,0.3)] transition">
+            <button className="flex items-center gap-2 px-6 py-4 bg-white/5 border border-white/10 text-zinc-300 rounded-xl text-[14px] font-bold hover:bg-white/8 hover:border-white/15 transition-all">
               Watch 3-min Demo
             </button>
           </div>
         </motion.div>
-      </section>
 
-      {/* Features */}
-      <section className="relative z-10 px-8 pb-20">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl font-bold text-center text-white mb-10">
-            Everything You Need to Master JVM Internals
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {features.map((f, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 * i, duration: 0.5 }}
-                className="p-5 rounded-xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.06)] hover:border-[rgba(0,212,255,0.2)] transition-all group"
-              >
-                <div className="text-[#00d4ff] mb-3 group-hover:scale-110 transition-transform inline-block">
-                  {f.icon}
-                </div>
-                <h3 className="font-bold text-white mb-1.5 text-sm">{f.title}</h3>
-                <p className="text-xs text-gray-400 leading-relaxed">{f.desc}</p>
-              </motion.div>
-            ))}
-          </div>
+        {/* GC Algorithm Tags */}
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-10 max-w-2xl">
+          {gcAlgorithms.map((algo) => (
+            <span
+              key={algo}
+              className="px-3 py-1 bg-white/[0.03] border border-white/8 rounded-full text-[10px] font-bold text-zinc-500 uppercase tracking-wider hover:text-zinc-300 hover:border-white/15 transition-all cursor-pointer"
+            >
+              {algo}
+            </span>
+          ))}
         </div>
       </section>
 
-      {/* Key stats */}
-      <section className="relative z-10 border-t border-[rgba(255,255,255,0.05)] py-12 px-8">
-        <div className="max-w-4xl mx-auto grid grid-cols-4 gap-8 text-center">
-          {[
-            { val: '34', label: 'Learning Levels' },
-            { val: '12', label: 'Cinematic Scenes' },
-            { val: '6', label: 'GC Algorithms' },
-            { val: '25', label: 'Interview Q&As' },
-          ].map(s => (
-            <div key={s.label}>
-              <div className="text-3xl font-black text-[#00d4ff] mb-1">{s.val}</div>
-              <div className="text-xs text-gray-500">{s.label}</div>
+      {/* Stats Bar */}
+      <section className="border-y border-white/5 bg-white/[0.015] py-8 px-8">
+        <div className="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+          {stats.map(({ val, label }) => (
+            <div key={label} className="flex flex-col gap-1">
+              <span className="text-3xl font-black text-blue-400 tabular-nums">{val}</span>
+              <span className="text-[11px] text-zinc-500 font-medium uppercase tracking-widest">{label}</span>
             </div>
           ))}
         </div>
       </section>
 
+      {/* Features Grid */}
+      <section className="px-8 py-16">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-2xl font-black text-white mb-3">
+              Everything You Need to Master JVM Internals
+            </h2>
+            <p className="text-zinc-500 text-sm max-w-lg mx-auto">
+              From zero JVM knowledge to production-level debugging skills — in a single interactive session.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {features.map((f, i) => {
+              const Icon = f.icon;
+              const isHovered = hoveredFeature === i;
+              return (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.06 * i, duration: 0.5 }}
+                  onHoverStart={() => setHoveredFeature(i)}
+                  onHoverEnd={() => setHoveredFeature(null)}
+                  className={`p-5 rounded-xl border transition-all duration-200 cursor-pointer ${
+                    isHovered
+                      ? 'bg-blue-500/5 border-blue-500/20'
+                      : 'bg-white/[0.02] border-white/6 hover:bg-white/[0.04]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className={`p-2.5 rounded-lg border transition-all ${
+                      isHovered ? 'bg-blue-500/15 border-blue-500/30' : 'bg-white/5 border-white/8'
+                    }`}>
+                      <Icon size={16} className={isHovered ? 'text-blue-400' : 'text-zinc-400'} />
+                    </div>
+                    <span className="text-[9px] font-bold text-zinc-600 bg-white/5 border border-white/8 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                      {f.tag}
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-white text-[13px] mb-2 leading-snug">{f.title}</h3>
+                  <p className="text-[12px] text-zinc-500 leading-relaxed">{f.desc}</p>
+                  {isHovered && (
+                    <div className="flex items-center gap-1 mt-4 text-blue-400 text-[11px] font-bold">
+                      <span>Explore</span>
+                      <ChevronRight size={12} />
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* What you'll learn */}
+      <section className="px-8 pb-16">
+        <div className="max-w-5xl mx-auto bg-white/[0.02] border border-white/6 rounded-2xl p-8">
+          <div className="flex items-start gap-6">
+            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl shrink-0">
+              <Shield size={20} className="text-blue-400" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-white mb-3">Production-Grade Education</h2>
+              <p className="text-zinc-400 text-sm mb-6 leading-relaxed max-w-2xl">
+                This is not a tutorial. This is a living, breathing JVM you can walk inside. Every concept
+                is visualized in real-time 3D — from TLAB allocation to Remembered Sets to Safepoints.
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {[
+                  'Object Lifecycle', 'GC Root Analysis', 'Stop-The-World Events',
+                  'Memory Segmentation', 'JFR Event Streams', 'Metaspace vs PermGen',
+                  'Thread-Local Allocation', 'Finalization Pipeline', 'Card Table & Write Barriers',
+                ].map(topic => (
+                  <div key={topic} className="flex items-center gap-2 text-[11px] text-zinc-400">
+                    <div className="w-1 h-1 rounded-full bg-emerald-400 shrink-0" />
+                    {topic}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Footer CTA */}
-      <section className="relative z-10 text-center py-16 px-8">
-        <h2 className="text-3xl font-black text-white mb-4">Ready to walk inside the JVM?</h2>
-        <button
+      <section className="border-t border-white/5 py-16 px-8 text-center bg-white/[0.01]">
+        <h2 className="text-2xl font-black text-white mb-3">Ready to walk inside the JVM?</h2>
+        <p className="text-zinc-500 text-sm mb-8 max-w-md mx-auto">
+          Works entirely in your browser. No installation, no signup, no backend required.
+        </p>
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
           onClick={() => setStarted(true)}
-          className="px-10 py-4 text-lg font-black rounded-xl text-[#0a0a0f] transition-all hover:scale-105"
-          style={{ background: 'linear-gradient(135deg, #00d4ff, #00ff88)', boxShadow: '0 0 30px rgba(0,212,255,0.4)' }}
+          className="inline-flex items-center gap-3 px-10 py-4 bg-blue-600 text-white rounded-xl text-[15px] font-black hover:bg-blue-500 transition-all shadow-xl shadow-blue-900/30"
         >
           Start Free — No Signup Required
-        </button>
-        <p className="text-xs text-gray-500 mt-4">Works entirely in your browser. No installation. No backend.</p>
+          <ArrowRight size={16} />
+        </motion.button>
       </section>
     </div>
   );

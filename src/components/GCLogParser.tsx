@@ -1,7 +1,7 @@
+import { useJVMStore } from '../store/jvmStore';
 import { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import * as d3 from 'd3';
-import { FileText, Zap, AlertCircle, BarChart2 } from 'lucide-react';
+import { FileText, BarChart2, AlertCircle, Upload, RefreshCw } from 'lucide-react';
 
 interface GCLogEvent {
   id: number;
@@ -13,21 +13,30 @@ interface GCLogEvent {
   duration: number;
 }
 
+const SAMPLE_LOG = `[0.100s][info][gc] GC(0) Pause Young 300M->132M(512M) 12.345ms
+[0.500s][info][gc] GC(1) Pause Young 412M->210M(512M) 15.1ms
+[0.920s][info][gc] GC(2) Pause Full 490M->82M(512M) 88.5ms
+[1.400s][info][gc] GC(3) Pause Young 280M->120M(512M) 10.2ms
+[2.100s][info][gc] GC(4) Pause Young 390M->200M(512M) 14.5ms
+[2.800s][info][gc] GC(5) Pause Young 440M->180M(512M) 18.3ms
+[3.500s][info][gc] GC(6) Pause Full 510M->90M(512M) 95.1ms`;
+
 export default function GCLogParser() {
   const [log, setLog] = useState('');
   const [events, setEvents] = useState<GCLogEvent[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const chartRef = useRef<SVGSVGElement>(null);
+  const addEvent = useJVMStore(state => state.addEvent);
 
   const parseLog = () => {
+    if (!log.trim()) return;
     setAnalyzing(true);
-    // Simple heuristic parser for -Xlog:gc
+
     const lines = log.split('\n');
     const parsed: GCLogEvent[] = [];
     let idCounter = 0;
 
     lines.forEach(line => {
-      // Look for patterns like [0.112s][info][gc] GC(0) Pause Young 300M->132M(512M) 12.345ms
       const timeMatch = line.match(/\[([\d.]+)s\]/);
       const heapMatch = line.match(/(\d+)M->(\d+)M\((\d+)M\)/);
       const durationMatch = line.match(/([\d.]+)ms/);
@@ -41,7 +50,7 @@ export default function GCLogParser() {
           before: parseInt(heapMatch[1]),
           after: parseInt(heapMatch[2]),
           max: parseInt(heapMatch[3]),
-          duration: parseFloat(durationMatch[1])
+          duration: parseFloat(durationMatch[1]),
         });
       }
     });
@@ -49,7 +58,10 @@ export default function GCLogParser() {
     setTimeout(() => {
       setEvents(parsed);
       setAnalyzing(false);
-    }, 1000);
+      if (parsed.length > 0) {
+        addEvent('LOG', `Parsed ${parsed.length} GC events from log`, 0);
+      }
+    }, 700);
   };
 
   useEffect(() => {
@@ -58,142 +70,143 @@ export default function GCLogParser() {
 
   const renderChart = () => {
     const svg = d3.select(chartRef.current);
-    const width = 800, height = 300;
-    const margin = { top: 20, right: 30, bottom: 40, left: 50 };
-    
+    const width = 560; const height = 200;
+    const margin = { top: 16, right: 20, bottom: 32, left: 44 };
+
     svg.selectAll('*').remove();
+    svg.attr('viewBox', `0 0 ${width} ${height}`);
 
     const x = d3.scaleLinear()
-      .domain([0, d3.max(events, d => d.time)! * 1.1])
+      .domain([0, d3.max(events, d => d.time)! * 1.05])
       .range([margin.left, width - margin.right]);
 
     const y = d3.scaleLinear()
       .domain([0, d3.max(events, d => d.max)!])
       .range([height - margin.bottom, margin.top]);
 
-    // Draw max heap line
-    svg.append('line')
-      .attr('x1', margin.left)
-      .attr('x2', width - margin.right)
-      .attr('y1', y(events[0].max))
-      .attr('y2', y(events[0].max))
-      .attr('stroke', 'rgba(255,255,255,0.1)')
-      .attr('stroke-dasharray', '4,2');
+    // Grid lines
+    svg.append('g').selectAll('line')
+      .data(y.ticks(4)).enter().append('line')
+      .attr('x1', margin.left).attr('x2', width - margin.right)
+      .attr('y1', d => y(d)).attr('y2', d => y(d))
+      .attr('stroke', 'rgba(255,255,255,0.04)').attr('stroke-width', 1);
 
-    // Draw events as vertical drops
+    // Draw GC events
     events.forEach(ev => {
-      // Before GC
-      svg.append('circle')
-        .attr('cx', x(ev.time))
-        .attr('cy', y(ev.before))
-        .attr('r', 3)
-        .attr('fill', '#ef4444');
-
-      // Drop line
+      const isFull = ev.type === 'Full';
       svg.append('line')
-        .attr('x1', x(ev.time))
-        .attr('x2', x(ev.time))
-        .attr('y1', y(ev.before))
-        .attr('y2', y(ev.after))
-        .attr('stroke', '#00ff88')
-        .attr('stroke-width', 2);
-      
-      // After GC
-      svg.append('circle')
-        .attr('cx', x(ev.time))
-        .attr('cy', y(ev.after))
-        .attr('r', 2)
-        .attr('fill', '#00ff88');
+        .attr('x1', x(ev.time)).attr('x2', x(ev.time))
+        .attr('y1', y(ev.before)).attr('y2', y(ev.after))
+        .attr('stroke', isFull ? '#ef4444' : '#10b981')
+        .attr('stroke-width', isFull ? 2 : 1.5)
+        .attr('opacity', 0.9);
 
-      // Pause Duration bars at bottom
-      const durH = Math.min(50, ev.duration);
-      svg.append('rect')
-        .attr('x', x(ev.time) - 1)
-        .attr('y', height - margin.bottom - durH)
-        .attr('width', 2)
-        .attr('height', durH)
-        .attr('fill', 'rgba(0, 212, 255, 0.4)');
+      svg.append('circle')
+        .attr('cx', x(ev.time)).attr('cy', y(ev.before))
+        .attr('r', 3).attr('fill', '#ef4444');
+
+      svg.append('circle')
+        .attr('cx', x(ev.time)).attr('cy', y(ev.after))
+        .attr('r', 2).attr('fill', '#10b981');
     });
 
-    // X Axis
-    svg.append('g')
-      .attr('transform', `translate(0,${height - margin.bottom})`)
-      .call(d3.axisBottom(x).ticks(10).tickFormat(d => d + 's'))
-      .attr('color', 'rgba(255,255,255,0.3)');
+    // Axes
+    const xAxis = d3.axisBottom(x).ticks(6).tickFormat(d => d + 's');
+    const yAxis = d3.axisLeft(y).ticks(4).tickFormat(d => d + 'M');
 
-    // Y Axis
-    svg.append('g')
-      .attr('transform', `translate(${margin.left},0)`)
-      .call(d3.axisLeft(y).ticks(5).tickFormat(d => d + 'M'))
-      .attr('color', 'rgba(255,255,255,0.3)');
+    svg.append('g').attr('transform', `translate(0,${height - margin.bottom})`)
+      .call(xAxis)
+      .call(g => { g.attr('color', 'rgba(255,255,255,0.25)'); g.select('.domain').remove(); g.selectAll('line').attr('color', 'rgba(255,255,255,0.06)'); });
+
+    svg.append('g').attr('transform', `translate(${margin.left},0)`)
+      .call(yAxis)
+      .call(g => { g.attr('color', 'rgba(255,255,255,0.25)'); g.select('.domain').remove(); g.selectAll('line').attr('color', 'rgba(255,255,255,0.06)'); });
   };
 
-  const sampleLog = `[0.100s][info][gc] GC(0) Pause Young 300M->132M(512M) 12.345ms
-[0.500s][info][gc] GC(1) Pause Young 412M->210M(512M) 15.1ms
-[0.920s][info][gc] GC(2) Pause Full 490M->82M(512M) 88.5ms
-[1.400s][info][gc] GC(3) Pause Young 280M->120M(512M) 10.2ms
-[2.100s][info][gc] GC(4) Pause Young 390M->200M(512M) 14.5ms`;
+  const avgPause = events.length ? Math.round((events.reduce((s, e) => s + e.duration, 0) / events.length) * 10) / 10 : 0;
+  const maxPause = events.length ? Math.round(Math.max(...events.map(e => e.duration)) * 10) / 10 : 0;
+  const fullGCs = events.filter(e => e.type === 'Full').length;
 
   return (
-    <div className="h-full flex flex-col bg-[#0a0a0f] text-white p-8 overflow-hidden font-sans">
-      <div className="mb-6 shrink-0 flex justify-between items-end">
-        <div>
-           <h1 className="text-3xl font-black mb-2 flex items-center gap-3">
-             <FileText className="text-cyan-400" /> GC Log Visualizer
-           </h1>
-           <p className="text-gray-400 text-sm max-w-xl">Paste your Unified Logging output <code className="text-white">(-Xlog:gc)</code> here to visualize the heap trends and pause distributions.</p>
+    <div className="flex flex-col bg-surface-secondary border border-white/6 rounded-xl overflow-hidden font-sans">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between bg-black/20">
+        <div className="flex items-center gap-2.5">
+          <div className="p-1.5 bg-brand-primary/10 border border-brand-primary/20 rounded-md">
+            <FileText size={12} className="text-brand-primary" />
+          </div>
+          <div>
+            <h3 className="text-[11px] font-bold text-white">GC Log Visualizer</h3>
+            <span className="text-[9px] text-zinc-600 font-mono uppercase tracking-wider">-Xlog:gc</span>
+          </div>
         </div>
-        <div className="flex gap-2">
-           <button onClick={() => setLog(sampleLog)} className="px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] font-bold text-gray-400 uppercase tracking-widest border border-white/5">Load Sample</button>
-           <button onClick={parseLog} disabled={!log || analyzing} className="px-6 py-2 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-black font-black rounded-lg text-xs transition uppercase shadow-[0_0_20px_rgba(0,212,255,0.3)] flex items-center gap-2">
-             {analyzing ? <Zap size={14} className="animate-spin" /> : <BarChart2 size={14} />} 
-             Parse & Visualize
-           </button>
-        </div>
+        <button
+          onClick={() => { setLog(SAMPLE_LOG); setEvents([]); }}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold text-zinc-500 bg-white/[0.03] border border-white/6 rounded-md hover:text-zinc-200 hover:bg-white/5 transition-all"
+        >
+          <Upload size={10} /> Load Sample
+        </button>
       </div>
 
-      <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
-         <div className="flex-1 flex flex-col gap-4">
-            <textarea
-              value={log}
-              onChange={e => setLog(e.target.value)}
-              placeholder="Paste -Xlog:gc lines here..."
-              className="flex-1 bg-black/40 border border-white/10 rounded-3xl p-6 font-mono text-xs text-cyan-300/80 focus:outline-none focus:border-cyan-500/50 resize-none custom-scrollbar placeholder:text-gray-700 shadow-inner"
-            />
-            {events.length > 0 && (
-              <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex justify-around text-center">
-                 <div><div className="text-[9px] text-gray-500 uppercase font-black">Pause Count</div><div className="text-xl font-mono text-white">{events.length}</div></div>
-                 <div><div className="text-[9px] text-gray-500 uppercase font-black">Avg Pause</div><div className="text-xl font-mono text-cyan-400">{Math.round(d3.mean(events, d => d.duration)!)}ms</div></div>
-                 <div><div className="text-[9px] text-gray-500 uppercase font-black">Max Pause</div><div className="text-xl font-mono text-red-500">{Math.round(d3.max(events, d => d.duration)!)}ms</div></div>
-                 <div><div className="text-[9px] text-gray-500 uppercase font-black">Throughput</div><div className="text-xl font-mono text-green-400">98.4%</div></div>
+      {/* Textarea */}
+      <div className="p-4 border-b border-white/5">
+        <textarea
+          value={log}
+          onChange={e => setLog(e.target.value)}
+          placeholder="Paste -Xlog:gc output here..."
+          rows={5}
+          className="w-full bg-black/30 border border-white/6 rounded-lg p-3 font-mono text-[10px] text-emerald-300/70 placeholder-zinc-700 focus:outline-none focus:border-brand-primary/40 custom-scrollbar resize-none transition-colors"
+        />
+        <button
+          onClick={parseLog}
+          disabled={!log.trim() || analyzing}
+          className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 bg-brand-primary text-white text-[11px] font-bold rounded-lg hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+        >
+          {analyzing ? <RefreshCw size={12} className="animate-spin" /> : <BarChart2 size={12} />}
+          {analyzing ? 'Analyzing...' : 'Parse & Visualize'}
+        </button>
+      </div>
+
+      {/* Chart or placeholder */}
+      <div className="p-4">
+        {events.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <BarChart2 size={28} className="text-zinc-700 mb-3" />
+            <p className="text-[10px] text-zinc-600 italic">Paste a GC log and click Parse to visualize heap trends</p>
+          </div>
+        ) : (
+          <>
+            {/* Stats row */}
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              {[
+                { label: 'Events', value: events.length.toString(), color: 'text-white' },
+                { label: 'Avg Pause', value: `${avgPause}ms`, color: 'text-brand-primary' },
+                { label: 'Max Pause', value: `${maxPause}ms`, color: 'text-status-error' },
+                { label: 'Full GCs', value: fullGCs.toString(), color: fullGCs > 0 ? 'text-status-warning' : 'text-status-success' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="bg-white/[0.02] border border-white/5 rounded-lg p-2.5 text-center">
+                  <div className={`text-[14px] font-black font-mono ${color}`}>{value}</div>
+                  <div className="text-[8px] text-zinc-600 font-bold uppercase tracking-widest mt-0.5">{label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Chart */}
+            <div className="bg-black/30 border border-white/5 rounded-lg overflow-hidden p-2">
+              <svg ref={chartRef} className="w-full" style={{ height: 200 }} />
+            </div>
+
+            {/* Anomaly */}
+            {fullGCs > 0 && (
+              <div className="flex items-start gap-3 mt-3 p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+                <AlertCircle size={13} className="text-amber-400 shrink-0 mt-0.5" />
+                <p className="text-[10px] text-zinc-400 leading-relaxed">
+                  <span className="text-white font-bold">{fullGCs} Full GC event{fullGCs > 1 ? 's' : ''}</span> detected with {maxPause}ms max pause — indicates heap pressure. Consider tuning <code className="text-brand-primary">-Xmx</code> or switching to ZGC/Shenandoah.
+                </p>
               </div>
             )}
-         </div>
-
-         <div className="flex-1 flex flex-col gap-4">
-            <div className="flex-1 bg-black/40 border border-white/10 rounded-3xl p-4 flex items-center justify-center relative">
-               <AnimatePresence mode="wait">
-                  {events.length === 0 ? (
-                    <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center text-gray-600">
-                       <BarChart2 size={48} className="mx-auto mb-4 opacity-20" />
-                       <p className="text-xs italic">Visualized timeline will appear here</p>
-                    </motion.div>
-                  ) : (
-                    <motion.svg key="chart" ref={chartRef} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full h-full" viewBox="0 0 800 300" />
-                  )}
-               </AnimatePresence>
-            </div>
-
-            <div className="p-6 bg-yellow-500/5 border border-yellow-500/20 rounded-3xl flex gap-4 items-start">
-               <AlertCircle className="text-yellow-500 shrink-0" size={20} />
-               <div>
-                  <h4 className="text-[10px] font-bold text-yellow-500 uppercase mb-1">Anomaly Detection</h4>
-                  <p className="text-[11px] text-gray-400 leading-relaxed italic">
-                    Detected <span className="text-white">Full GC</span> event at 0.92s with <span className="text-red-500 font-bold">88.5ms</span> pause. This represents a significant deviation from Minor GC latency and suggests potential heap pressure.
-                  </p>
-               </div>
-            </div>
-         </div>
+          </>
+        )}
       </div>
     </div>
   );

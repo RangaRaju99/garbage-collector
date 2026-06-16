@@ -1,76 +1,41 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ShieldAlert, Cpu, Terminal, Zap, CheckCircle, Info } from 'lucide-react';
 
 type Disaster = { id: string; title: string; lang: string; code: string; explosion: string; color: string; };
 
 const disasters: Disaster[] = [
   {
-    id: 'leak', title: 'Memory Leak', color: '#ff6b00',
+    id: 'leak', title: 'Memory Leak', color: '#f59e0b',
     lang: 'C',
-    code: `void processRequest() {
+    code: `void handleRequest() {
   char* buffer = malloc(1024);
-  // ❌ forgot free(buffer)!
-  // Buffer leaks every request
+  // ❌ Missing free(buffer)!
+  // Memory stays allocated until
+  // process termination.
   return;
-}
-// After 10,000 requests:
-// 10MB leaked → OS kills process`,
-    explosion: 'Heap fills up. Process killed by OS. No warning. No stack trace.',
+}`,
+    explosion: 'Heap fills up monotonically. OS eventually sends SIGKILL 9.',
   },
   {
-    id: 'dangling', title: 'Dangling Pointer', color: '#ff4444',
+    id: 'dangling', title: 'Dangling Pointer', color: '#ef4444',
     lang: 'C',
-    code: `Employee* e = malloc(sizeof(Employee));
-e->name = "Alice";
-free(e);          // ✅ freed
-
-// But then...
-printf("%s", e->name); // ❌ USE AFTER FREE
-// Reading deallocated memory
-// → Undefined behavior, segfault, or
-// reading another object's data`,
-    explosion: 'Accessing freed memory: data corruption, segfault, or silent wrong values.',
-  },
-  {
-    id: 'wild', title: 'Wild Pointer', color: '#ff00aa',
-    lang: 'C',
-    code: `int* ptr; // ❌ uninitialized!
-// ptr contains random stack address
-
-*ptr = 42; // Writing to random memory!
-// Could overwrite:
-// - Another variable
-// - Function return address
-// - OS kernel memory
-// → Instant crash or silent corruption`,
-    explosion: 'Writing to random memory. Anything could be overwritten.',
-  },
-  {
-    id: 'doublefree', title: 'Double Free', color: '#aa00ff',
-    lang: 'C',
-    code: `Employee* e = malloc(sizeof(Employee));
-free(e);   // ✅ first free — correct
+    code: `User* u = malloc(sizeof(User));
+u->id = 1;
+free(u); // ✅ Memory released
 // ...
-free(e);   // ❌ second free!
-// malloc's internal bookkeeping corrupted
-// → heap corruption
-// → next malloc returns wrong address
-// → program crash or security exploit`,
-    explosion: 'Freeing the same memory twice corrupts the heap allocator internals.',
+printf("%d", u->id); // ❌ USE AFTER FREE
+// Reading stale or random memory.`,
+    explosion: 'Accessing deallocated addresses causes non-deterministic crashes.',
   },
   {
-    id: 'overflow', title: 'Buffer Overflow', color: '#ffaa00',
+    id: 'overflow', title: 'Buffer Overflow', color: '#f97316',
     lang: 'C',
     code: `char username[8];
 // ❌ No bounds check!
-strcpy(username, "Alexandra_Smith_III");
-// "username" buffer: 8 bytes
-// Input string: 20 bytes
-// Overflow overwrites:
-//  - Adjacent stack variables
-//  - Saved return address → exploitable!
-// → Security vulnerability (CVE-level)`,
-    explosion: 'Buffer overflow: adjacent memory corrupted. Return address hijacked.',
+strcpy(username, "Alexandra_Smith");
+// Overflow overwrites the stack frame.`,
+    explosion: 'Adjacent memory corruption. Classic security vulnerability point.',
   },
 ];
 
@@ -79,138 +44,172 @@ export default function L01_Level() {
   const [showJava, setShowJava] = useState(false);
 
   return (
-    <div className="h-full flex flex-col bg-[#0a0a0f] text-white overflow-y-auto font-sans">
-      {/* Header */}
-      <div className="px-8 pt-8 pb-4">
-        <div className="flex items-center gap-3 mb-2">
-          <span className="px-2 py-0.5 bg-[rgba(0,212,255,0.15)] border border-[rgba(0,212,255,0.3)] rounded text-[10px] font-mono text-[#00d4ff]">L01</span>
-          <span className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">BEGINNER TRACK</span>
-        </div>
-        <h1 className="text-3xl font-black text-white mb-2">Why Does Java Need Garbage Collection?</h1>
-        <p className="text-gray-400 text-sm max-w-2xl leading-relaxed">
-          Before Java, every developer manually managed memory. Here's what happened — and why the JVM GC was invented to eliminate all of it.
-        </p>
-      </div>
+    <div className="h-full flex flex-col bg-transparent text-white overflow-y-auto font-sans custom-scrollbar">
+      {/* Content Container */}
+      <div className="max-w-6xl mx-auto p-12 space-y-12">
+        
+        {/* Header Section */}
+        <header className="space-y-4">
+          <div className="flex items-center gap-3">
+             <span className="px-2 py-0.5 bg-brand-primary/10 border border-brand-primary/20 rounded text-[10px] font-mono text-brand-primary font-black uppercase">Module L01</span>
+             <span className="h-px w-8 bg-zinc-800" />
+             <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-[0.2em]">The Evolution of Managed Memory</span>
+          </div>
+          <h1 className="text-5xl font-black text-white tracking-tight leading-none italic">Why does Java need GC?</h1>
+          <p className="text-[16px] text-zinc-400 font-medium leading-relaxed max-w-3xl">
+            Before managed runtimes, memory was a manual battlefield. Developers were responsible for manually tracking every byte. 
+            A single mistake meant process death or security vulnerability.
+          </p>
+        </header>
 
-      {/* C Disasters Grid */}
-      <div className="px-8 pb-6">
-        <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">
-          5 C/C++ Memory Disasters — Click Each to Explore
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {disasters.map((d) => (
-            <motion.button
-              key={d.id}
-              onClick={() => setActive(active === d.id ? null : d.id)}
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-              className={`text-left p-4 rounded-xl border transition-all ${
-                active === d.id
-                  ? 'border-[rgba(255,255,255,0.3)] bg-[rgba(255,255,255,0.08)]'
-                  : 'border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)]'
-              }`}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color, boxShadow: `0 0 8px ${d.color}` }} />
-                <span className="font-bold text-sm text-white">{d.title}</span>
-                <span className="ml-auto text-[9px] font-mono text-gray-600 bg-[rgba(255,255,255,0.05)] px-1.5 py-0.5 rounded">C/C++</span>
+        {/* Legacy Comparison */}
+        <section className="space-y-6">
+           <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest px-1">
+             <ShieldAlert size={12} className="text-status-error" /> Legacy Memory Vectors
+           </div>
+           
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+             {disasters.map((d) => (
+               <motion.button
+                 key={d.id}
+                 onClick={() => setActive(active === d.id ? null : d.id)}
+                 className={`text-left p-6 rounded-2xl border transition-all duration-300 relative group overflow-hidden ${
+                   active === d.id
+                     ? 'bg-zinc-950 border-white/20 ring-1 ring-white/10 shadow-2xl scale-[1.02]'
+                     : 'bg-zinc-950/40 border-white/5 hover:border-white/10'
+                 }`}
+               >
+                 <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color, boxShadow: `0 0 10px ${d.color}44` }} />
+                       <span className="text-[12px] font-black uppercase tracking-tight text-white">{d.title}</span>
+                    </div>
+                    <span className="text-[9px] font-mono font-bold text-zinc-600 bg-black/40 px-2 py-0.5 rounded border border-white/5">{d.lang}</span>
+                 </div>
+                 
+                 <div className="bg-black/60 rounded-xl p-4 mb-4 border border-white/5 group-hover:border-white/10 transition-colors">
+                    <pre className="text-[11px] font-mono text-zinc-400 leading-relaxed overflow-hidden">
+                      {d.code}
+                    </pre>
+                 </div>
+
+                 <AnimatePresence>
+                   {active === d.id && (
+                     <motion.div
+                       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+                       className="p-4 bg-status-error/10 border border-status-error/20 rounded-xl"
+                     >
+                       <div className="flex items-start gap-3">
+                         <Zap size={14} className="text-status-error shrink-0 mt-0.5" />
+                         <p className="text-[12px] text-status-error font-medium leading-relaxed">{d.explosion}</p>
+                       </div>
+                     </motion.div>
+                   )}
+                 </AnimatePresence>
+                 
+                 {!active && (
+                   <div className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                     Analyze vulnerability
+                   </div>
+                 )}
+               </motion.button>
+             ))}
+           </div>
+        </section>
+
+        {/* Java Modernization */}
+        <section className="bg-brand-primary/5 border border-brand-primary/10 rounded-3xl p-10 space-y-8 relative overflow-hidden shadow-2xl">
+           <div className="absolute top-0 right-0 p-10 opacity-5">
+              <Cpu size={120} className="text-brand-primary" />
+           </div>
+
+           <div className="relative z-10 space-y-6">
+              <div className="flex items-center gap-3">
+                 <div className="w-12 h-12 rounded-2xl bg-brand-primary/20 flex items-center justify-center border border-brand-primary/30 shadow-[0_0_20px_rgba(59,130,246,0.2)]">
+                    <CheckCircle size={24} className="text-brand-primary" />
+                 </div>
+                 <div>
+                    <h2 className="text-2xl font-black text-white italic tracking-tight uppercase">JVM Architecture: Managed Runtime</h2>
+                    <p className="text-[13px] text-zinc-500 font-medium">Automatic Memory Management via Garbage Collection</p>
+                 </div>
               </div>
-              <pre className="text-[9px] font-mono text-gray-400 leading-relaxed whitespace-pre-wrap overflow-hidden max-h-28">
-                {d.code}
-              </pre>
+
+              <div className="grid md:grid-cols-2 gap-10">
+                <div className="bg-black/60 border border-white/5 rounded-2xl p-6 shadow-inner">
+                  <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2">
+                     <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                       <Terminal size={10} /> source_code.java
+                     </span>
+                  </div>
+                  <pre className="text-[13px] font-mono text-zinc-300 leading-loose">
+{`// Memory is managed by the JVM
+User u = new User("Alice");
+
+// ... once finished
+u = null; // Mark as eligible
+
+// 🤖 GC processes reachability
+// 🤖 Reclaims contiguous blocks
+// 🤖 No manual free() required`}
+                  </pre>
+                </div>
+
+                <div className="flex flex-col justify-center space-y-4">
+                  {[
+                    'Automated GC prevents dangling pointers (UAF)',
+                    'Bound checks eliminate buffer overflows',
+                    'Strong typing prevents wild/uninitialized pointers',
+                    'Predictable memory layout (Object Header + Fields)',
+                  ].map((benefit, i) => (
+                    <div key={i} className="flex items-center gap-3 group">
+                       <div className="w-5 h-5 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 text-emerald-500 transition-transform group-hover:scale-110">
+                          <CheckCircle size={10} />
+                       </div>
+                       <span className="text-[13px] text-zinc-300 font-bold tracking-tight">{benefit}</span>
+                    </div>
+                  ))}
+                  
+                  <div className="pt-4 flex items-center gap-2 p-3 bg-white/5 rounded-xl border border-white/5 text-zinc-500 text-[11px] font-medium italic">
+                    <Info size={14} className="text-zinc-600" />
+                    Tradeoff: STW pauses and runtime memory overhead.
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-6">
+                <button 
+                  onClick={() => setShowJava(!showJava)}
+                  className="px-6 py-3 bg-zinc-900 border border-white/10 hover:border-brand-primary/50 text-zinc-300 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-3 group"
+                >
+                  Inspect Object Lifecycle <Activity size={14} className={`transition-transform duration-500 ${showJava ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+
               <AnimatePresence>
-                {active === d.id && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mt-3 pt-3 border-t border-[rgba(255,255,255,0.08)]"
+                {showJava && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
                   >
-                    <div className="flex items-start gap-2 p-2 rounded bg-[rgba(255,0,0,0.08)] border border-[rgba(255,0,0,0.2)]">
-                      <span className="text-red-400 text-xs">💥</span>
-                      <p className="text-[11px] text-red-300 leading-relaxed">{d.explosion}</p>
+                    <div className="flex gap-4 p-6 bg-black/40 rounded-2xl border border-white/5 overflow-x-auto custom-scrollbar">
+                       {['Allocation', 'TLAB Bump', 'Eden Space', 'Survivor S0', 'Tenuring', 'Old Gen'].map((step, i) => (
+                          <div key={i} className="flex items-center gap-4 shrink-0">
+                             <div className="flex flex-col items-center gap-2">
+                                <div className="w-10 h-10 rounded-full bg-brand-primary/10 border border-brand-primary/30 flex items-center justify-center text-brand-primary text-[10px] font-black">
+                                   {i + 1}
+                                </div>
+                                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">{step}</span>
+                             </div>
+                             {i < 5 && <ArrowLeft size={14} className="text-zinc-800 rotate-180 mb-6" />}
+                          </div>
+                       ))}
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
-            </motion.button>
-          ))}
-        </div>
-      </div>
+           </div>
+        </section>
 
-      {/* Java's Answer */}
-      <div className="px-8 pb-8">
-        <div className="border border-[rgba(0,212,255,0.2)] bg-[rgba(0,212,255,0.04)] rounded-xl p-6">
-          <h2 className="text-lg font-bold text-[#00d4ff] mb-3 flex items-center gap-2">
-            🤖 Java's Answer: Automatic Garbage Collection
-          </h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <pre className="text-[11px] font-mono text-gray-300 bg-[rgba(0,0,0,0.4)] p-4 rounded-lg leading-relaxed">
-{`// Java — no malloc, no free
-Employee e = new Employee("Alice");
-// JVM allocates automatically in Heap
-
-e = null; // You signal: "not needed"
-
-// GC robot runs → detects unreachable
-// → collects e → memory reclaimed
-// ZERO manual free() required.
-// ZERO dangling pointers.
-// ZERO double-frees possible.`}
-              </pre>
-            </div>
-            <div className="space-y-3">
-              {[
-                { icon: '✅', text: 'No malloc() / free() — JVM handles all allocation' },
-                { icon: '✅', text: 'No dangling pointers — GC only removes truly unreachable objects' },
-                { icon: '✅', text: 'No double-free — GC tracks object lifecycle internally' },
-                { icon: '✅', text: 'No buffer overflow — Java checks array bounds at runtime' },
-                { icon: '✅', text: 'No wild pointers — all references are type-safe' },
-                { icon: '⚠️', text: 'Tradeoff: GC pauses (milliseconds to seconds depending on collector)' },
-                { icon: '⚠️', text: 'Tradeoff: Memory overhead (~2-5× live data for efficient GC)' },
-              ].map((item, i) => (
-                <div key={i} className="flex items-start gap-2 text-sm">
-                  <span>{item.icon}</span>
-                  <span className="text-gray-300">{item.text}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            onClick={() => setShowJava(!showJava)}
-            className="mt-4 px-5 py-2 bg-[rgba(0,212,255,0.15)] border border-[rgba(0,212,255,0.3)] rounded-lg text-sm text-[#00d4ff] font-bold transition"
-          >
-            {showJava ? '▼' : '▶'} See GC in action (Object lifecycle summary)
-          </motion.button>
-          <AnimatePresence>
-            {showJava && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="mt-4 overflow-hidden"
-              >
-                <div className="flex items-center gap-2 flex-wrap text-xs font-mono">
-                  {['new Employee()', '→ TLAB', '→ Eden', '→ Survivor (age++)', '→ Old Gen', '→ GC Collects', '→ Memory reclaimed ✅'].map((step, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <motion.div
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.15 }}
-                        className="px-2 py-1 rounded bg-[rgba(0,212,255,0.1)] border border-[rgba(0,212,255,0.2)] text-[#00d4ff]"
-                      >
-                        {step}
-                      </motion.div>
-                      {i < 6 && <span className="text-gray-600">→</span>}
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
       </div>
     </div>
   );

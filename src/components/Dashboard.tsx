@@ -1,115 +1,173 @@
-
 import { useJVMStore } from '../store/jvmStore';
+import { Activity, Zap, Box, Layers, Terminal as TerminalIcon } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export default function Dashboard() {
   const metrics = useJVMStore(state => state.metrics);
   const flags = useJVMStore(state => state.flags);
-  const triggerGC = () => {
-    useJVMStore.getState().addEvent('INFO', 'System.gc() requested by user', 0);
-    import('../simulator/JVMEngine').then(m => m.instance.runMinorGC());
-  };
-
-  const triggerLeak = () => {
-    useJVMStore.getState().addEvent('WARNING', 'Memory leak initiated', 0);
-    import('../simulator/JVMEngine').then(m => {
-      // Allocate massive arrays rapidly
-      for(let i=0; i<50; i++) m.instance.allocateObject(10, 'LeakedArray', true);
-      m.instance.publishMetrics();
-    });
-  };
+  const events = useJVMStore(state => state.events);
+  const gcAlgorithm = useJVMStore(state => state.gcAlgorithm);
+  const requestGC = useJVMStore(state => state.requestGC);
+  const injectLeak = useJVMStore(state => state.injectLeak);
 
   const heapTotal = flags.Xmx;
   const heapUsagePercent = Math.round((metrics.heapUsed / heapTotal) * 100) || 0;
 
-  // Assuming Eden is configured via NewRatio, typically roughly 1/3 of heap if NewRatio=2
-  const youngGenTotal = Math.floor(heapTotal / (flags.NewRatio + 1));
-  const oldGenTotal = heapTotal - youngGenTotal;
-  const edenTotal = Math.floor(youngGenTotal * (flags.SurvivorRatio / (flags.SurvivorRatio + 2)));
-  const survivorTotal = Math.floor(youngGenTotal * (1 / (flags.SurvivorRatio + 2)));
-
   return (
-    <div className="flex-1 p-4 flex flex-col gap-4 overflow-y-auto">
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">JVM Live Feed</h2>
-        <span className="flex items-center gap-2 text-red-500 text-xs font-bold animate-pulse">
-          <span className="w-2 h-2 rounded-full bg-red-500"></span> LIVE
-        </span>
+    <div className="flex-1 flex flex-col bg-surface-secondary overflow-hidden font-sans border-l border-white/5">
+      {/* Header */}
+      <div className="px-5 py-5 border-b border-white/5 bg-black/20 flex items-center justify-between shrink-0">
+        <div>
+          <h2 className="text-[13px] font-bold text-white tracking-tight uppercase">Live Telemetry</h2>
+          <p className="text-[10px] text-zinc-500 font-medium font-mono tracking-wider mt-0.5">Real-time JVM Metrics</p>
+        </div>
+        <div className="flex items-center gap-2 px-2.5 py-1 bg-emerald-500/10 rounded-md border border-emerald-500/20">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-[9px] font-black text-emerald-500 uppercase tracking-[0.15em]">Connected</span>
+        </div>
       </div>
 
-      {/* Heap Breakdown */}
-      <div className="glass-panel p-4 flex flex-col gap-3">
-        <div className="text-xs text-gray-400 flex justify-between">
-          <span>HEAP TOTAL</span>
-          <span className="text-white">{heapUsagePercent}% ({metrics.heapUsed}M / {heapTotal}M)</span>
-        </div>
-        <div className="w-full h-2 bg-[rgba(255,255,255,0.1)] rounded-full overflow-hidden flex">
-          <div className="h-full bg-green-500" style={{ width: `${(metrics.edenUsed / heapTotal) * 100}%` }} title="Eden"></div>
-          <div className="h-full bg-green-700" style={{ width: `${(metrics.survivorUsed / heapTotal) * 100}%` }} title="Survivor"></div>
-          <div className="h-full bg-blue-500" style={{ width: `${(metrics.oldGenUsed / heapTotal) * 100}%` }} title="Old Gen"></div>
-        </div>
+      <div className="flex-1 overflow-y-auto p-5 space-y-7 custom-scrollbar min-h-0">
         
-        <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
-          <div className="flex flex-col">
-            <span className="text-gray-500">Eden ({edenTotal}M)</span>
-            <span className="text-green-400 font-mono">{metrics.edenUsed} MB</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-gray-500">Survivor (x2) ({survivorTotal}M)</span>
-            <span className="text-green-600 font-mono">{metrics.survivorUsed} MB</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-gray-500">Old Gen ({oldGenTotal}M)</span>
-            <span className="text-blue-400 font-mono">{metrics.oldGenUsed} MB</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-gray-500">Metaspace</span>
-            <span className="text-purple-400 font-mono">{metrics.metaspaceUsed} MB</span>
-          </div>
+        {/* Core Metrics Grid */}
+        <div className="grid grid-cols-2 gap-3">
+           <div className="p-4 bg-zinc-950/40 border border-white/5 rounded-xl shadow-sm relative overflow-hidden group">
+             <div className="absolute top-0 right-0 p-3 opacity-20 group-hover:opacity-40 transition-opacity">
+               <Layers size={24} className="text-brand-primary" />
+             </div>
+             <div className="relative z-10">
+               <span className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em] mb-3 block">Heap Usage</span>
+               <div className="flex items-baseline gap-1">
+                 <span className="text-2xl font-black text-white font-mono">{heapUsagePercent}%</span>
+                 <span className="text-[10px] text-zinc-600 font-bold uppercase">Util</span>
+               </div>
+               <div className="mt-2 text-[10px] text-zinc-500 font-medium font-mono">
+                 {metrics.heapUsed}MB <span className="text-zinc-800">/</span> {heapTotal}MB
+               </div>
+             </div>
+           </div>
+           
+           <div className="p-4 bg-zinc-950/40 border border-white/5 rounded-xl shadow-sm relative overflow-hidden group">
+             <div className="absolute top-0 right-0 p-3 opacity-20 group-hover:opacity-40 transition-opacity">
+               <Activity size={24} className="text-brand-primary" />
+             </div>
+             <div className="relative z-10">
+               <span className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em] mb-3 block">Objects Alive</span>
+               <div className="flex items-baseline gap-1">
+                 <span className="text-2xl font-black text-white font-mono">{metrics.objectsAlive.toLocaleString()}</span>
+               </div>
+               <div className="mt-2 text-[10px] text-emerald-500 font-bold uppercase tracking-tighter">
+                 +2.4k <span className="text-zinc-600 font-medium lowercase">current cycle</span>
+               </div>
+             </div>
+           </div>
         </div>
+
+        {/* Segmentation Visualization */}
+        <section className="space-y-4">
+          <div className="flex justify-between items-center px-1">
+            <div className="flex items-center gap-2 text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
+               <Layers size={11} className="text-brand-primary" /> Memory Segments
+            </div>
+            <span className="text-[9px] font-mono text-brand-primary bg-brand-primary/10 px-2 py-0.5 rounded-md border border-brand-primary/20 font-black uppercase">
+              {gcAlgorithm}
+            </span>
+          </div>
+          
+          <div className="h-6 w-full flex gap-1 p-1 bg-zinc-950 border border-white/5 rounded-xl overflow-hidden shadow-inner">
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${(metrics.edenUsed / heapTotal) * 100}%` }}
+              className="h-full bg-emerald-500/40 border-r border-emerald-500/20 transition-all rounded-lg" 
+            />
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${(metrics.survivorUsed / heapTotal) * 100}%` }}
+              className="h-full bg-blue-500/40 border-r border-blue-500/20 transition-all rounded-lg" 
+            />
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${(metrics.oldGenUsed / heapTotal) * 100}%` }}
+              className="h-full bg-zinc-800 transition-all rounded-lg" 
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 px-1">
+             {[
+               { label: 'Eden', val: metrics.edenUsed, color: 'bg-emerald-500' },
+               { label: 'Survivor', val: metrics.survivorUsed, color: 'bg-blue-500' },
+               { label: 'Old Gen', val: metrics.oldGenUsed, color: 'bg-zinc-700' },
+             ].map(item => (
+               <div key={item.label} className="flex flex-col gap-1">
+                 <div className="flex items-center gap-2">
+                    <div className={`w-1.5 h-1.5 rounded-full ${item.color} shadow-[0_0_6px_rgba(255,255,255,0.1)]`} />
+                    <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-[0.15em]">{item.label}</span>
+                 </div>
+                 <span className="text-[11px] text-white font-mono font-bold pl-3.5 tracking-tight">{item.val} MB</span>
+               </div>
+             ))}
+          </div>
+        </section>
+
+        {/* System Logs */}
+        <section className="flex-1 flex flex-col min-h-0 min-w-0 pb-6">
+           <div className="flex items-center justify-between mb-4 px-1 shrink-0">
+             <div className="flex items-center gap-2 text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
+               <TerminalIcon size={11} className="text-brand-primary" /> Internal Log Stream
+             </div>
+             <div className="flex items-center gap-1.5">
+                <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Listening</span>
+             </div>
+           </div>
+           
+           <div className="flex-1 p-5 bg-zinc-950/60 border border-white/5 rounded-2xl font-mono text-[11px] overflow-y-auto custom-scrollbar shadow-inner min-h-[300px]">
+             <div className="space-y-4">
+                {events.length > 0 ? events.map((ev, i) => (
+                   <div key={i} className="flex gap-4 items-start group">
+                     <span className="text-zinc-700 shrink-0 font-mono text-[9px] pt-1">
+                       {new Date(ev.time).toLocaleTimeString([], { hour12: false, second: '2-digit', minute: '2-digit' })}
+                     </span>
+                     <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[9px] font-black uppercase tracking-widest ${
+                            ev.type === 'GC' || ev.type === 'GC_REQ' ? 'text-status-error' : 
+                            ev.type === 'OOM' ? 'text-status-error' :
+                            ev.type === 'LEAK' ? 'text-status-warning' : 'text-brand-primary'
+                          }`}>{ev.type}</span>
+                          <div className={`h-px flex-1 min-w-[20px] ${
+                            ev.type === 'GC' || ev.type === 'GC_REQ' ? 'bg-status-error/10' : 'bg-brand-primary/10'
+                          }`} />
+                        </div>
+                        <span className="text-zinc-400 group-hover:text-zinc-200 transition-colors leading-relaxed font-medium">
+                          {ev.message}
+                        </span>
+                     </div>
+                   </div>
+                )) : (
+                   <div className="h-full flex flex-col items-center justify-center py-20 text-zinc-800 italic text-[11px]">
+                     <Activity size={24} className="mb-4 opacity-10" />
+                     Waiting for JVM activity...
+                   </div>
+                )}
+             </div>
+           </div>
+        </section>
       </div>
 
-      {/* Objects Overview */}
-      <div className="glass-panel p-4">
-        <h3 className="text-xs text-gray-400 mb-2">OBJECT LIFECYCLE</h3>
-        <div className="flex justify-between items-end mb-1 text-sm">
-          <span>Reachable (Alive)</span>
-          <span className="font-mono text-success-reachable">{metrics.objectsAlive}</span>
-        </div>
-        <div className="flex justify-between items-end mb-1 text-sm">
-          <span>Garbage (Dead)</span>
-          <span className="font-mono text-danger-gc">{metrics.objectsDead}</span>
-        </div>
-      </div>
-
-      {/* GC Events */}
-      <div className="glass-panel p-4 flex-1">
-        <h3 className="text-xs text-gray-400 mb-2">GC ACTIVITY (G1)</h3>
-        <ul className="text-xs space-y-2 font-mono">
-          <li className="flex justify-between border-b border-[rgba(255,255,255,0.05)] pb-1">
-            <span className="text-gray-400">[0.042s]</span>
-            <span className="text-yellow-400">Minor GC Pause</span>
-            <span>12ms</span>
-          </li>
-          <li className="flex justify-between border-b border-[rgba(255,255,255,0.05)] pb-1">
-            <span className="text-gray-400">[1.204s]</span>
-            <span className="text-yellow-400">Minor GC Pause</span>
-            <span>14ms</span>
-          </li>
-          <li className="flex justify-between border-b border-[rgba(255,255,255,0.05)] pb-1">
-            <span className="text-gray-400">[5.441s]</span>
-            <span className="text-blue-400">Mixed GC Pause</span>
-            <span>22ms</span>
-          </li>
-        </ul>
-      </div>
-      
-      {/* Actions */}
-      <div className="flex gap-2 shrink-0">
-        <button onClick={triggerGC} className="flex-1 py-2 bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] border border-[rgba(255,255,255,0.1)] rounded text-xs font-bold transition">
-          System.gc()
+      {/* Footer Controls */}
+      <div className="p-5 bg-black/30 border-t border-white/5 grid grid-cols-2 gap-3 shrink-0">
+        <button 
+          onClick={requestGC} 
+          className="flex items-center justify-center gap-2 py-3.5 bg-white text-black hover:bg-zinc-200 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] transition-all transform active:scale-95 shadow-xl shadow-white/5"
+        >
+          <Zap size={14} fill="currentColor" /> System.gc()
         </button>
-        <button onClick={triggerLeak} className="flex-1 py-2 bg-[rgba(255,0,0,0.1)] hover:bg-[rgba(255,0,0,0.2)] border border-[rgba(255,0,0,0.3)] rounded text-xs font-bold transition text-red-400 shadow-[0_0_10px_rgba(255,0,0,0.2)] hover:shadow-[0_0_20px_rgba(255,0,0,0.5)]">
-          Leak Memory
+        <button 
+          onClick={injectLeak} 
+          className="flex items-center justify-center gap-2 py-3.5 bg-zinc-900 border border-white/5 hover:bg-zinc-800 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] text-zinc-300 transition-all transform active:scale-95"
+        >
+          <Box size={14} /> Inject Leak
         </button>
       </div>
     </div>

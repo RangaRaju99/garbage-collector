@@ -1,5 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { useJVMStore } from '../store/jvmStore';
+import { motion } from 'framer-motion';
+import { X, Loader2, Construction, ArrowLeft } from 'lucide-react';
 
 // Lazy load actual level components
 const L01 = lazy(() => import('../levels/L01_Level'));
@@ -46,86 +48,86 @@ const L41 = lazy(() => import('../levels/L41_Level'));
 const L42 = lazy(() => import('../levels/L42_Level'));
 
 const LevelMap: Record<string, React.FC> = {
-  'L01': L01,
-  'L02': L02,
-  'L03': L03,
-  'L04': L04,
-  'L05': L05,
-  'L06': L06,
-  'L07': L07,
-  'L08': L08,
-  'L09': L09,
-  'L10': L10,
-  'L11': L11,
-  'L12': L12,
-  'L13': L13,
-  'L14': L14,
-  'L15': L15,
-  'L16': L16,
-  'L17': L17,
-  'L18': L18,
-  'L19': L19,
-  'L20': L20,
-  'L21': L21,
-  'L22': L22,
-  'L23': L23,
-  'L24': L24,
-  'L25': L25,
-  'L26': L26,
-  'L27': L27,
-  'L28': L28,
-  'L29': L29,
-  'L30': L30,
-  'L31': L31,
-  'L32': L32,
-  'L33': L33,
-  'L34': L34,
-  'L35': L35,
-  'L36': L36,
-  'L37': L37,
-  'L38': L38,
-  'L39': L39,
-  'L40': L40,
-  'L41': L41,
-  'L42': L42,
+  'L01': L01, 'L02': L02, 'L03': L03, 'L04': L04, 'L05': L05, 'L06': L06,
+  'L07': L07, 'L08': L08, 'L09': L09, 'L10': L10, 'L11': L11, 'L12': L12,
+  'L13': L13, 'L14': L14, 'L15': L15, 'L16': L16, 'L17': L17, 'L18': L18,
+  'L19': L19, 'L20': L20, 'L21': L21, 'L22': L22, 'L23': L23, 'L24': L24,
+  'L25': L25, 'L26': L26, 'L27': L27, 'L28': L28, 'L29': L29, 'L30': L30,
+  'L31': L31, 'L32': L32, 'L33': L33, 'L34': L34, 'L35': L35, 'L36': L36,
+  'L37': L37, 'L38': L38, '(' : L39, 'L39': L39, 'L40': L40, 'L41': L41, 'L42': L42,
 };
 
 export default function LevelRenderer() {
   const activeLevel = useJVMStore(state => state.activeLevel);
   const mode = useJVMStore(state => state.mode);
+  const setLevel = (lvl: string) => useJVMStore.setState({ activeLevel: lvl });
 
-  // Only render levels if in learn mode or if a specific level is active
-  if (mode !== 'learn' && activeLevel === 'L00') return null;
+  // Only render overlays if a specific level is active and NOT L00
+  if (activeLevel === 'L00') return null;
 
   const ActiveComponent = LevelMap[activeLevel];
 
-  if (!ActiveComponent) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50 text-white p-20 text-center">
-        <div>
-           <h2 className="text-2xl font-black mb-4">Level {activeLevel} Under Construction</h2>
-           <p className="text-gray-400">This immersive module is currently being finalized in the JVM city development cycle.</p>
-           <div className="mt-8 px-4 py-2 bg-[rgba(0,212,255,0.1)] border border-[rgba(0,212,255,0.3)] rounded text-[#00d4ff] text-xs font-bold animate-pulse">
-              COMING SOON
-           </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="absolute inset-0 z-50 overflow-hidden bg-black/80 backdrop-blur-md">
-       <Suspense fallback={<div className="h-full w-full flex items-center justify-center"><div className="w-10 h-10 border-4 border-dashed border-accent-alive rounded-full animate-spin"/></div>}>
-          <ActiveComponent />
-       </Suspense>
-       
-       {/* Global Level Controls */}
-       <button 
-         onClick={() => useJVMStore.getState().setLevel('L00')}
-         className="absolute top-6 right-6 w-10 h-10 rounded-full bg-red-500/10 border border-red-500/30 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition z-50"
-       >
-         ✕
-       </button>
+    <div className="absolute inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-xl flex flex-col">
+       {/* Minimalist Top Control Bar */}
+       <div className="h-14 flex items-center justify-between px-6 shrink-0 z-50">
+          <button 
+            onClick={() => setLevel('L00')}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white transition-all text-[11px] font-bold uppercase tracking-widest border border-white/5"
+          >
+            <ArrowLeft size={14} /> Back to Hub
+          </button>
+          
+          <div className="flex items-center gap-3">
+             <span className="text-[10px] font-mono text-zinc-600 bg-white/5 px-2 py-0.5 rounded uppercase">{mode} MODE</span>
+             <button 
+               onClick={() => setLevel('L00')}
+               className="w-8 h-8 flex items-center justify-center rounded-lg bg-status-error/10 text-status-error hover:bg-status-error hover:text-white transition-all border border-status-error/20"
+             >
+               <X size={16} />
+             </button>
+          </div>
+       </div>
+
+       {/* Level Content Area */}
+       <div className="flex-1 overflow-hidden relative">
+          <Suspense fallback={
+            <div className="h-full w-full flex items-center justify-center">
+               <div className="flex flex-col items-center gap-4">
+                  <Loader2 size={32} className="text-brand-primary animate-spin" />
+                  <span className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em]">Loading Neural Link...</span>
+               </div>
+            </div>
+          }>
+             {ActiveComponent ? (
+                <ActiveComponent />
+             ) : (
+                <div className="h-full flex items-center justify-center p-20 text-center">
+                   <motion.div 
+                     initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                     className="max-w-md space-y-6"
+                   >
+                      <div className="w-16 h-16 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center mx-auto">
+                        <Construction size={32} className="text-brand-primary" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-black text-white mb-2 uppercase italic tracking-tight">Access restricted</h2>
+                        <p className="text-[13px] text-zinc-500 font-medium leading-relaxed">
+                          Level <span className="text-zinc-300 font-mono">{activeLevel}</span> is currently being synthesized in the JVM development lab. 
+                          Check back after the next runtime update.
+                        </p>
+                      </div>
+                      <button 
+                        onClick={() => setLevel('L00')}
+                        className="px-8 py-3 bg-white text-black rounded-xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all"
+                      >
+                         Return to Hub
+                      </button>
+                   </motion.div>
+                </div>
+             )}
+          </Suspense>
+       </div>
     </div>
   );
 }

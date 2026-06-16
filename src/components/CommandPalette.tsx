@@ -42,49 +42,65 @@ export default function CommandPalette() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] bg-[rgba(0,0,0,0.6)] backdrop-blur-md flex items-start justify-center pt-[15vh]"
+        className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-start justify-center pt-[15vh]"
         onClick={() => setIsOpen(false)}
       >
         <motion.div 
-          initial={{ opacity: 0, y: -20, scale: 0.95 }}
+          initial={{ opacity: 0, y: -8, scale: 0.99 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -20, scale: 0.95 }}
-          transition={{ duration: 0.15 }}
-          className="bg-primary-bg overflow-hidden border border-[rgba(255,255,255,0.1)] shadow-2xl rounded-xl w-[500px] max-w-full flex flex-col"
+          exit={{ opacity: 0, y: -8, scale: 0.99 }}
+          transition={{ duration: 0.1, ease: 'easeOut' }}
+          className="bg-surface-secondary overflow-hidden border border-white/10 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.5)] rounded-xl w-[560px] max-w-full flex flex-col"
           onClick={e => e.stopPropagation()}
         >
           {/* Input Header */}
-          <div className="flex items-center p-4 border-b border-[rgba(255,255,255,0.05)]">
-            <Search size={20} className="text-gray-400 mr-3" />
+          <div className="flex items-center p-5 border-b border-white/5">
+            <Search size={18} className="text-gray-500 mr-4" />
             <input 
               autoFocus
-              className="flex-1 bg-transparent border-none text-white focus:outline-none text-lg font-sans placeholder-gray-500" 
+              className="flex-1 bg-transparent border-none text-white focus:outline-none text-[14px] font-sans placeholder-gray-600 font-medium" 
               placeholder="Search chapters, settings, or objects..." 
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
-            <div className="text-[10px] text-gray-500 bg-[rgba(255,255,255,0.1)] px-2 py-1 rounded font-mono uppercase tracking-widest">
-              ESC
+            <div className="flex items-center gap-1.5 ml-4">
+               <kbd className="min-w-[32px] h-[20px] flex items-center justify-center bg-white/[0.05] rounded border border-white/10 text-gray-500 text-[10px] font-bold">
+                 ESC
+               </kbd>
             </div>
           </div>
 
           {/* Results Area */}
-          <div className="max-h-[300px] overflow-y-auto p-2">
-             {results.length > 0 ? results.map((res, i) => (
-                <div key={i} className="group flex items-center p-3 hover:bg-[rgba(0,212,255,0.1)] rounded-lg cursor-pointer transition">
-                  <div className="bg-[rgba(255,255,255,0.05)] p-2 rounded text-gray-400 group-hover:text-accent-alive transition mr-4">
-                     {res.icon}
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs text-gray-400 mb-1">{res.type}</span>
-                    <span className="text-sm font-bold text-gray-200 group-hover:text-white transition">{res.name}</span>
-                  </div>
-                </div>
-             )) : (
-                <div className="text-center p-8 text-gray-500 text-sm">
-                  No results found for "{query}". Try "Metaspace" or "ZGC".
+          <div className="max-h-[400px] overflow-y-auto p-2 custom-scrollbar">
+             {results.length > 0 ? (
+               <div className="space-y-0.5">
+                  {results.map((res, i) => (
+                    <div key={i} className="group flex items-center p-3 hover:bg-white/[0.04] rounded-lg cursor-pointer transition-all duration-150">
+                      <div className="w-8 h-8 flex items-center justify-center bg-white/[0.03] rounded-md text-gray-500 group-hover:text-brand-primary group-hover:bg-brand-primary/10 transition-all mr-4">
+                         {res.icon}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5">{res.type}</span>
+                        <span className="text-[13px] font-medium text-gray-300 group-hover:text-white transition-colors">{res.name}</span>
+                      </div>
+                    </div>
+                  ))}
+               </div>
+             ) : (
+                <div className="flex flex-col items-center justify-center py-12 px-8 text-center space-y-2">
+                   <div className="text-[14px] font-bold text-gray-400">No matches found</div>
+                   <p className="text-[11px] text-gray-500 max-w-[200px]">Try searching for "Metaspace" or "ZGC" to explore more.</p>
                 </div>
              )}
+          </div>
+          
+          {/* Footer Metadata */}
+          <div className="px-5 py-3 bg-black/20 border-t border-white/5 flex items-center justify-between">
+             <div className="flex items-center gap-4 text-[10px] text-gray-500 font-medium">
+                <span className="flex items-center gap-1.5"><kbd className="bg-white/5 px-1 rounded">↑↓</kbd> Navigate</span>
+                <span className="flex items-center gap-1.5"><kbd className="bg-white/5 px-1 rounded">↵</kbd> Select</span>
+             </div>
+             <span className="text-[9px] font-mono text-gray-600">JVM_CONTEXT_V1.1</span>
           </div>
         </motion.div>
       </motion.div>

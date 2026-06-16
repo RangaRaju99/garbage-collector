@@ -1,5 +1,6 @@
 import { useJVMStore } from '../store/jvmStore';
 import { BookOpen, Video } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const curriculum = [
   { id: 'L01', title: 'Why GC Exists', section: 'BEGINNER TRACK', cam: 'default' },
@@ -54,59 +55,90 @@ export default function CurriculumSidebar() {
 
   const handleSelect = (id: string, camInfo: any) => {
     setLevel(id);
-    if (id === 'L34') {
-      setMode('movie');
-    } else {
-      setMode('learn');
-    }
+    if (id === 'L34') setMode('movie');
+    else setMode('learn');
     
     if(camInfo === 'targetEden') setCam('objectBirth');
     else setCam(camInfo);
   };
 
   return (
-    <aside className="w-64 border-r border-[rgba(0,212,255,0.2)] bg-primary-bg-alt overflow-y-auto shrink-0 flex flex-col custom-scrollbar">
-      {/* Header */}
-      <div className="p-5 border-b border-[rgba(255,255,255,0.05)] bg-[rgba(0,0,0,0.2)]">
-        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-1">
-          <BookOpen size={14} className="text-accent-alive" /> CURRICULUM
-        </h3>
-        <p className="text-[10px] text-gray-500 font-mono">0% Completed (0/42)</p>
+    <div className="flex flex-col h-full bg-surface-primary overflow-hidden font-sans border-r border-white/5">
+      {/* Header Panel */}
+      <div className="p-5 border-b border-white/5 bg-black/20">
+        <div className="flex items-center justify-between mb-5">
+           <div className="flex flex-col">
+             <h3 className="text-[14px] font-bold text-white tracking-tight">Curriculum</h3>
+             <span className="text-[10px] text-zinc-500 font-medium">Internal Diagnostics</span>
+           </div>
+           <div className="w-8 h-8 rounded-lg bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center">
+             <BookOpen size={14} className="text-brand-primary" />
+           </div>
+        </div>
+        
+        {/* Progress System */}
+        <div className="space-y-2">
+          <div className="flex justify-between text-[10px] items-center px-0.5">
+            <span className="text-zinc-500 font-bold tracking-widest uppercase">Progress</span>
+            <span className="text-brand-primary font-mono font-bold">12 / 42</span>
+          </div>
+          <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+             <motion.div 
+               initial={{ width: 0 }}
+               animate={{ width: '28%' }}
+               className="h-full bg-brand-primary shadow-[0_0_8px_rgba(59,130,246,0.5)]" 
+               transition={{ duration: 1.5, ease: "easeOut" }}
+             />
+          </div>
+        </div>
       </div>
 
-      {/* Levels Map */}
-      <div className="flex-1 px-3 py-4 space-y-6">
-        {['BEGINNER TRACK', 'INTERMEDIATE', 'INTERVIEW MODE', 'ADVANCED', 'JVM ENGINEER', 'MOVIE MODE'].map((sectionTitle) => (
-          <div key={sectionTitle}>
-             <h4 className="text-[10px] text-gray-500 font-bold tracking-widest mb-2 pl-2">
-               {sectionTitle === 'MOVIE MODE' ? <Video size={10} className="inline mr-1"/> : null}
-               {sectionTitle}
-             </h4>
-             <div className="space-y-1">
-                {curriculum.filter(x => x.section === sectionTitle).map((lvl) => {
-                   const isActive = activeLevel === lvl.id;
-                   return (
-                     <button
-                       key={lvl.id}
-                       onClick={() => handleSelect(lvl.id, lvl.cam)}
-                       className={`w-full text-left px-3 py-2 rounded font-sans text-xs flex items-center justify-between transition-all border ${
-                         isActive 
-                           ? 'bg-[rgba(0,212,255,0.1)] text-white border-accent-alive shadow-[0_0_10px_rgba(0,212,255,0.2)]' 
-                           : 'bg-transparent text-gray-400 border-transparent hover:bg-[rgba(255,255,255,0.05)] hover:text-gray-200'
-                       }`}
-                     >
-                       <div className="flex items-center gap-2 truncate">
-                          <span className={`font-mono text-[9px] ${isActive ? 'text-accent-alive' : 'text-gray-500'}`}>{lvl.id}</span>
-                          <span className="truncate max-w-[130px] font-medium">{lvl.title}</span>
-                       </div>
-                       {isActive && <div className="w-1.5 h-1.5 rounded-full bg-accent-alive shadow-[0_0_5px_rgba(0,212,255,1)] animate-pulse" />}
-                     </button>
-                   );
-                })}
-             </div>
-          </div>
-        ))}
+      {/* Level Navigation */}
+      <div className="flex-1 py-4 space-y-7 overflow-y-auto custom-scrollbar">
+        {['BEGINNER TRACK', 'INTERMEDIATE', 'INTERVIEW MODE', 'ADVANCED', 'JVM ENGINEER', 'MOVIE MODE'].map((sectionTitle) => {
+          const sectionLevels = curriculum.filter(x => x.section === sectionTitle);
+          if (sectionLevels.length === 0) return null;
+
+          return (
+            <div key={sectionTitle} className="px-2">
+               <h4 className="px-4 text-[9px] text-zinc-600 font-black tracking-[0.2em] uppercase mb-2">
+                 {sectionTitle}
+               </h4>
+               <div className="space-y-0.5">
+                  {sectionLevels.map((lvl) => {
+                     const isActive = activeLevel === lvl.id;
+                     return (
+                       <button
+                         key={lvl.id}
+                         onClick={() => handleSelect(lvl.id, lvl.cam)}
+                         className={`w-full text-left px-4 py-2 rounded-lg transition-all duration-150 group relative ${
+                           isActive 
+                             ? 'bg-white/[0.05] text-white shadow-sm' 
+                             : 'text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300'
+                         }`}
+                       >
+                         <div className="flex items-center gap-3">
+                            <span className={`font-mono text-[9px] w-5 text-center transition-colors ${isActive ? 'text-brand-primary font-black' : 'text-zinc-700 group-hover:text-zinc-500'}`}>
+                              {lvl.id.replace('L', '')}
+                            </span>
+                            <span className={`text-[11px] font-medium truncate transition-colors ${isActive ? 'text-white' : ''}`}>
+                              {lvl.title}
+                            </span>
+                            {isActive && (
+                              <motion.div 
+                                layoutId="active-nav-pill"
+                                className="absolute left-1 top-2 bottom-2 w-[2px] bg-brand-primary rounded-full" 
+                              />
+                            )}
+                         </div>
+                       </button>
+                     );
+                  })}
+               </div>
+            </div>
+          );
+        })}
       </div>
-    </aside>
+    </div>
   );
 }

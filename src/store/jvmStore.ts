@@ -19,7 +19,7 @@ export interface JVMState {
   // Phase & Core control
   isRunning: boolean;
   playbackSpeed: number;
-  javaVersion: number;
+  javaVersion: string;
   gcAlgorithm: GCAlgorithm;
   
   // JVM Flags mappings
@@ -39,7 +39,7 @@ export interface JVMState {
     ReservedCodeCacheSize: number;
   };
   
-  // Simulated Memory Statistics (real-time metrics)
+  // Simulated Memory Statistics
   metrics: {
     heapUsed: number;
     edenUsed: number;
@@ -52,13 +52,9 @@ export interface JVMState {
     pauseTimeAvg: number;
   };
   
-  // Recent events log
   events: Array<{ time: number; type: string; message: string; durationMs: number }>;
-
-  // Live objects in heap
   objects: HeapObject[];
 
-  // App State
   hasStarted: boolean;
   isSafepoint: boolean;
   oomStatus: string | null;
@@ -68,7 +64,6 @@ export interface JVMState {
   learnSubMode: LearnSubMode;
   activeCameraSequence: 'default' | 'objectBirth' | 'markPhase' | 'sweepPhase' | 'promotion' | 'islandCollapse' | 'fullGCFreeze';
 
-  // Visual Debugging Overlays
   showObjectHeaders: boolean;
   showTLABBoundaries: boolean;
   showCardTable: boolean;
@@ -82,6 +77,7 @@ export interface JVMState {
   clearOOM: () => void;
   toggleXRay: () => void;
   requestGC: () => void;
+  injectLeak: () => void;
   toggleObjectHeaders: () => void;
   toggleTLABBoundaries: () => void;
   toggleCardTable: () => void;
@@ -90,6 +86,7 @@ export interface JVMState {
   setSimulationSpeed: (speed: number) => void;
   setLevel: (levelId: string) => void;
   setMode: (mode: AppMode) => void;
+  setVersion: (version: string) => void;
   setIsPlaying: (playing: boolean) => void;
   setCameraSequence: (seq: JVMState['activeCameraSequence']) => void;
   setFlag: (key: keyof JVMState['flags'], value: any) => void;
@@ -105,7 +102,7 @@ export const useJVMStore = create<JVMState>()(
   immer((set) => ({
     isRunning: true,
     playbackSpeed: 1.0,
-    javaVersion: 21,
+    javaVersion: '8',
     gcAlgorithm: 'G1',
 
     flags: {
@@ -183,12 +180,23 @@ export const useJVMStore = create<JVMState>()(
       state.mode = mode;
     }),
 
+    setVersion: (version) => set((state) => {
+      state.javaVersion = version;
+    }),
+
     setCameraSequence: (seq) => set((state) => {
        state.activeCameraSequence = seq;
     }),
 
     requestGC: () => set((state) => {
-      state.events.unshift({ time: Date.now(), type: 'GC_REQ', message: 'Manual System.gc() requested', durationMs: 0 });
+      state.events.unshift({ time: Date.now(), type: 'GC_REQ', message: 'Manual System.gc() triggered', durationMs: 45 });
+      state.metrics.heapUsed = Math.max(state.metrics.heapUsed * 0.3, 10);
+      state.metrics.edenUsed = 0;
+      state.metrics.survivorUsed = Math.max(state.metrics.survivorUsed * 0.5, 2);
+    }),
+
+    injectLeak: () => set((state) => {
+      state.events.unshift({ time: Date.now(), type: 'LEAK', message: 'Static collection memory leak injected', durationMs: 0 });
     }),
 
     toggleObjectHeaders: () => set((state) => { state.showObjectHeaders = !state.showObjectHeaders; }),

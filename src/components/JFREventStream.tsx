@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useJVMStore } from '../store/jvmStore';
-import { Activity, Zap, Box, Database, Clock } from 'lucide-react';
+import { Activity } from 'lucide-react';
 
 interface JFREvent {
   id: string;
@@ -58,59 +58,54 @@ export default function JFREventStream() {
   }, [isRunning]);
 
   return (
-    <div className="h-full flex flex-col bg-black/40 border border-white/10 rounded-3xl overflow-hidden font-sans">
-      <div className="px-5 py-3 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
-        <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
-          <Activity size={12} className="text-pink-500" /> JFR Event Stream
-        </h3>
-        <div className="flex gap-1">
-          <div className="w-1 h-1 rounded-full bg-pink-500 animate-ping" />
-          <span className="text-[8px] font-mono text-pink-500 uppercase">Live</span>
+    <div className="h-full flex flex-col bg-surface-tertiary border border-white/5 rounded-xl overflow-hidden font-sans">
+      <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between bg-white/[0.01]">
+        <div className="flex flex-col">
+           <h3 className="text-[11px] font-bold text-white tracking-tight">JFR Diagnostic Stream</h3>
+           <span className="text-[8px] text-gray-500 font-medium font-mono">FLIGHT RECORDING V2</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-status-info/10 rounded border border-status-info/20">
+          <div className="w-1 h-1 rounded-full bg-status-info animate-pulse" />
+          <span className="text-[8px] font-black text-status-info uppercase tracking-tighter">Live</span>
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar bg-black/10">
         <AnimatePresence initial={false}>
           {events.map((ev) => (
             <motion.div
               key={ev.id}
-              initial={{ opacity: 0, x: -20, height: 0 }}
-              animate={{ opacity: 1, x: 0, height: 'auto' }}
-              exit={{ opacity: 0, x: 20 }}
-              className={`p-2 rounded-lg border border-white/[0.03] bg-white/[0.01] flex gap-3 items-start group overflow-hidden ${
-                ev.severity === 'warn' ? 'border-yellow-500/20 bg-yellow-500/[0.02]' : ''
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className={`p-3 rounded-md border transition-all duration-200 group ${
+                ev.severity === 'warn' 
+                  ? 'bg-status-warning/[0.03] border-status-warning/20' 
+                  : 'bg-white/[0.02] border-white/5 hover:border-white/10'
               }`}
             >
-              <div className="shrink-0 mt-1">
-                {ev.type === 'Allocation' && <Box size={12} className="text-green-500" />}
-                {ev.type === 'GC' && <Zap size={12} className="text-red-500" />}
-                {ev.type === 'Promotion' && <Database size={12} className="text-blue-500" />}
-                {ev.type === 'JIT' && <Zap size={12} className="text-purple-500" />}
+              <div className="flex items-start justify-between mb-1.5">
+                <span className={`text-[9px] font-black tracking-widest uppercase ${
+                  ev.type === 'Allocation' ? 'text-status-success' :
+                  ev.type === 'GC' ? 'text-status-error' :
+                  ev.type === 'Promotion' ? 'text-brand-primary' : 'text-brand-secondary'
+                }`}>
+                  {ev.type}
+                </span>
+                <span className="text-[8px] font-mono text-gray-600">
+                  {new Date(ev.time).toLocaleTimeString([], { hour12: false, second: '2-digit', minute: '2-digit' })}
+                </span>
               </div>
-              
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-center mb-0.5">
-                  <span className={`text-[8px] font-black uppercase tracking-tighter ${
-                    ev.type === 'Allocation' ? 'text-green-500' :
-                    ev.type === 'GC' ? 'text-red-500' :
-                    ev.type === 'Promotion' ? 'text-blue-500' : 'text-purple-500'
-                  }`}>
-                    {ev.type}
-                  </span>
-                  <span className="text-[8px] font-mono text-gray-600 group-hover:text-gray-400">
-                    {new Date(ev.time).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </span>
-                </div>
-                <p className="text-[10px] text-gray-400 leading-tight truncate">{ev.message}</p>
-              </div>
+              <p className="text-[10px] text-gray-400 font-medium group-hover:text-gray-300 transition-colors leading-relaxed">
+                {ev.message}
+              </p>
             </motion.div>
           ))}
         </AnimatePresence>
         
         {events.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center opacity-30 gap-2 mt-10">
-             <Clock size={24} />
-             <p className="text-[10px] font-mono uppercase">Waiting for JFR Events...</p>
+          <div className="h-full flex flex-col items-center justify-center opacity-10 gap-3 py-16">
+             <Activity size={24} />
+             <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-center">Pipeline Handshake...</p>
           </div>
         )}
       </div>

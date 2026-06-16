@@ -1,6 +1,7 @@
 import { useJVMStore } from '../store/jvmStore';
 import { RotateCcw, AlertTriangle } from 'lucide-react';
 import { instance as jvmEngine } from '../simulator/JVMEngine';
+import { motion } from 'framer-motion';
 
 export default function OOMErrorOverlay() {
   const oomStatus = useJVMStore((state) => state.oomStatus);
@@ -9,45 +10,52 @@ export default function OOMErrorOverlay() {
   if (!oomStatus) return null;
 
   const handleRestart = () => {
-    // Clear simulation data to pretend JVM reboot
     jvmEngine.objects.clear();
     jvmEngine.edenRef = [];
     jvmEngine.oldGenRef = [];
-    
     useJVMStore.setState({ isRunning: true });
     clearOOM();
   };
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.85)] mix-blend-multiply transition-all backdrop-blur-sm">
-      <div className="absolute inset-0 bg-gradient-to-t from-[rgba(255,0,0,0.2)] to-transparent pointer-events-none" />
-      
-      <div className="bg-primary-bg-alt border border-danger-gc shadow-[0_0_80px_rgba(255,0,0,0.5)] p-8 max-w-xl text-center rounded-xl relative z-10">
-        <AlertTriangle size={64} className="text-danger-gc mx-auto mb-6 animate-pulse" />
-        
-        <h1 className="text-3xl font-bold text-white tracking-widest mb-2 font-mono">
-          <span className="text-danger-gc">FATAL ERROR:</span> OutOfMemoryError
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="absolute inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-md"
+    >
+      <motion.div
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        className="bg-surface-secondary border border-status-error/30 rounded-2xl p-8 max-w-md w-full mx-6 text-center shadow-2xl"
+      >
+        <div className="w-14 h-14 rounded-xl bg-status-error/10 border border-status-error/20 flex items-center justify-center mx-auto mb-5">
+          <AlertTriangle size={24} className="text-status-error" />
+        </div>
+
+        <h1 className="text-[13px] font-black text-status-error uppercase tracking-widest mb-1 font-mono">
+          Fatal Error
         </h1>
-        
-        <h2 className="text-xl text-red-300 font-mono mb-6 bg-[rgba(255,0,0,0.1)] py-2 rounded">
-          {oomStatus}
+        <h2 className="text-xl font-black text-white mb-2">
+          OutOfMemoryError
         </h2>
-        
-        <p className="text-gray-400 mb-8 font-sans leading-relaxed text-sm">
-          The JVM has completely exhausted available memory bounds mapped by your JVM Flags. 
-          Garbage Collection attempts failed to reclaim sufficient contiguous blocks. The process has been killed.
+
+        <div className="bg-black/40 border border-white/5 rounded-lg px-4 py-2 mb-5 font-mono text-[11px] text-status-error">
+          {oomStatus}
+        </div>
+
+        <p className="text-zinc-400 text-[12px] leading-relaxed mb-6">
+          The JVM has exhausted available heap memory. GC attempts failed to reclaim sufficient space.
+          The simulated process has been halted.
         </p>
 
-        <div className="flex gap-4 justify-center">
-          <button 
-            onClick={handleRestart}
-            className="flex items-center gap-2 px-6 py-3 bg-danger-gc text-white font-bold rounded hover:bg-red-500 transition shadow-[0_0_15px_rgba(255,0,0,0.4)]"
-          >
-            <RotateCcw size={18} />
-            REBOOT JVM
-          </button>
-        </div>
-      </div>
-    </div>
+        <button
+          onClick={handleRestart}
+          className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-status-error text-white font-bold rounded-xl hover:bg-red-500 active:scale-95 transition-all text-[12px]"
+        >
+          <RotateCcw size={14} />
+          Reboot JVM
+        </button>
+      </motion.div>
+    </motion.div>
   );
 }
