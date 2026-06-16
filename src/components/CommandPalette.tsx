@@ -28,6 +28,12 @@ export default function CommandPalette() {
     { type: 'GC Engine', name: 'Toggle G1 -> ZGC Collector', icon: <Settings size={16}/> },
     { type: 'Mode', name: 'Enter Detective Mode (Memory Leaks)', icon: <Map size={16}/> },
     { type: 'Documentation', name: 'What is the TLAB?', icon: <Book size={16}/> },
+    { type: 'Chapter', name: 'Escape Analysis & Stack Allocation', icon: <Book size={16}/> },
+    { type: 'Chapter', name: 'Native Memory Tracking (NMT)', icon: <Book size={16}/> },
+    { type: 'Chapter', name: 'Phantom References & Post-Mortem', icon: <Book size={16}/> },
+    { type: 'Chapter', name: 'G1 Humongous Objects', icon: <Book size={16}/> },
+    { type: 'Chapter', name: 'Compressed OOPs (32GB Wall)', icon: <Book size={16}/> },
+    { type: 'Chapter', name: 'Object Header Bit Layout', icon: <Book size={16}/> },
   ].filter(r => r.name.toLowerCase().includes(query.toLowerCase()));
 
   return (

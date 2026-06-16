@@ -1,4 +1,14 @@
 import { useJVMStore } from '../store/jvmStore';
+import { instance as heap } from './HeapManager';
+import { instance as allocation } from './AllocationEngine';
+import { instance as jit } from './JITEngine';
+import { instance as metaspace } from './MetaspaceEngine';
+import { instance as nmt } from './NativeMemoryTracker';
+import { instance as lifecycle } from './ObjectLifecycle';
+import { instance as serialGC } from './GCAlgorithms/SerialGC';
+import { instance as parallelGC } from './GCAlgorithms/ParallelGC';
+import { instance as g1GC } from './GCAlgorithms/G1GC';
+import { instance as zGC } from './GCAlgorithms/ZGC';
 
 export interface JVMObject {
   id: string;
@@ -6,158 +16,149 @@ export interface JVMObject {
   size: number;
   generation: 'eden' | 's0' | 's1' | 'old' | 'humongous';
   reachable: boolean;
-  references: string[]; // IDs of other objects
+  references: string[]; 
   isRoot: boolean;
   type: string;
 }
 
 export class JVMEngine {
   objects: Map<string, JVMObject> = new Map();
-  edenRef: JVMObject[] = [];
-  oldGenRef: JVMObject[] = [];
-  
   private idCounter = 0;
   
   tick() {
     const state = useJVMStore.getState();
     if (!state.isRunning || state.isSafepoint || state.oomStatus) return;
 
-    // Simulate steady object creation rate scaled by playbackSpeed
-    const newCount = Math.floor(Math.random() * 5 * state.playbackSpeed);
-    for (let i = 0; i < newCount; i++) {
-      const isRoot = Math.random() > 0.6;
-      const newObj = this.allocateObject(Math.floor(Math.random() * 10) + 1, 'String', isRoot);
-      
-      // Randomly link this to an existing object to form a node graph
-      if (this.edenRef.length > 1 && Math.random() > 0.5) {
-        const target = this.edenRef[Math.floor(Math.random() * (this.edenRef.length - 1))];
-        if (target.id !== newObj.id && !newObj.references.includes(target.id)) {
-           newObj.references.push(target.id);
-        }
-      }
-    }
+    const playbackSpeed = state.playbackSpeed;
     
-    // Randomly drop roots to simulate dead properties
+    // 1. Simulation Allocation
+    const newCount = Math.floor(Math.random() * 3 * playbackSpeed);
+    for (let i = 0; i < newCount; i++) {
+      const size = Math.floor(Math.random() * 5) + 1;
+      const type = 'String';
+      const isRoot = Math.random() > 0.8;
+      
+      const loc = allocation.allocate(size, type);
+      if (loc === 'REJECTED') {
+        this.handleAllocationFailure();
+        return;
+      }
+
+      const obj: JVMObject = {
+        id: `obj_${this.idCounter++}`,
+        age: 0,
+        size,
+        generation: loc === 'HUMONGOUS' ? 'humongous' : 
+                    loc === 'OLD' ? 'old' : 'eden',
+        reachable: true,
+        references: [],
+        isRoot,
+        type
+      };
+
+      this.objects.set(obj.id, obj);
+
+      // JIT Tracking
+      jit.recordInvocation(type);
+    }
+
+    // 2. Class Loading Simulation
+    if (Math.random() > 0.98) {
+      metaspace.loadClass(`Class_${this.idCounter}`, 'app-loader');
+    }
+
+    // 3. Randomize Reachability
     this.objects.forEach(obj => {
-      if (obj.isRoot && Math.random() > 0.95) {
+      if (obj.isRoot && Math.random() > 0.05) {
         obj.isRoot = false;
       }
     });
 
-    const config = state.flags;
-    const youngGenTotal = Math.floor(config.Xmx / (config.NewRatio + 1));
-    const edenTotal = Math.floor(youngGenTotal * (config.SurvivorRatio / (config.SurvivorRatio + 2)));
-    
-    const edenCurrentSize = this.edenRef.reduce((acc, obj) => acc + obj.size, 0);
-    const oldCurrentSize = this.oldGenRef.reduce((acc, obj) => acc + obj.size, 0);
-
-    if (edenCurrentSize + oldCurrentSize >= config.Xmx) {
-      if (Math.random() > 0.5) state.triggerOOM("Java heap space");
-      else state.triggerOOM("GC overhead limit exceeded");
-      return;
-    }
-
-    if (edenCurrentSize > edenTotal) {
-      this.runMinorGC();
-    }
-
-    this.publishMetrics();
+    this.syncToStore();
   }
 
-  allocateObject(size: number, type: string, isRoot: boolean): JVMObject {
+  private handleAllocationFailure() {
+    const state = useJVMStore.getState();
+    const config = state.flags;
+
+    // Delegate to active GC
+    if (config.UseG1GC) g1GC.runYoung();
+    else if (config.UseZGC) zGC.runConcurrentCycle();
+    else if (config.UseParallelGC) parallelGC.runYoung();
+    else serialGC.runYoung();
+  }
+
+  syncToStore() {
+    const state = useJVMStore.getState();
+    
+    // Sync Objects
+    const storeObjs = Array.from(this.objects.values()).map(o => ({
+      id: o.id,
+      type: o.type,
+      region: o.generation === 'old' || o.generation === 'humongous' ? 'oldGen' as const : 
+              o.generation === 'eden' ? 'eden' as const : 'survivor' as const,
+      age: o.age,
+      sizeKB: o.size * 1024,
+      color: lifecycle.getGenerationColor(o.generation),
+      reachable: o.reachable
+    }));
+    
+    state.setObjects(storeObjs);
+    
+    // Sync Metrics via NMT
+    const stats = nmt.getSummary();
+    state.updateMetrics({
+      edenUsed: heap.getUsage('eden'),
+      oldGenUsed: heap.getUsage('old'),
+      heapUsed: stats.heap,
+      objectsAlive: this.objects.size,
+      objectsDead: state.metrics.objectsDead + (Math.random() > 0.8 ? 1 : 0),
+    });
+  }
+
+  // --- Sandbox Simulation Hooks ---
+  
+  runMinorGC() {
+    this.handleAllocationFailure();
+    useJVMStore.getState().addEvent('GC', 'Manual System.gc() invoked from Sandbox', 25);
+  }
+
+  allocate(type: string = 'UserObject', size: number = 8) {
+    const loc = allocation.allocate(size, type);
     const obj: JVMObject = {
       id: `obj_${this.idCounter++}`,
       age: 0,
       size,
-      generation: 'eden',
+      generation: loc === 'HUMONGOUS' ? 'humongous' : 'eden',
       reachable: true,
       references: [],
-      isRoot,
+      isRoot: true,
       type
     };
-    
     this.objects.set(obj.id, obj);
-    this.edenRef.push(obj);
-    return obj;
+    this.syncToStore();
+    return obj.id;
   }
 
-  runMinorGC() {
-    const state = useJVMStore.getState();
-    state.setSafepoint(true); // Entering Stop-The-World
-
-    const startTime = performance.now();
-    
-    const reachableIds = new Set<string>();
-    const stack = Array.from(this.objects.values()).filter(o => o.isRoot);
-    
-    while (stack.length > 0) {
-      const current = stack.pop()!;
-      if (!reachableIds.has(current.id)) {
-        reachableIds.add(current.id);
-        current.references.forEach(refId => {
-          const refObj = this.objects.get(refId);
-          if (refObj) stack.push(refObj);
-        });
-      }
+  breakReference(id: string) {
+    const obj = this.objects.get(id);
+    if (obj) {
+      obj.isRoot = false;
+      obj.reachable = false;
+      this.syncToStore();
     }
-
-    // Sweep Eden and handle Survivor/Promotion
-    const config = state.flags;
-
-    let preS0 = this.edenRef.length;
-    this.edenRef = this.edenRef.filter(obj => reachableIds.has(obj.id));
-    let postS0 = this.edenRef.length;
-
-    const survivors: JVMObject[] = [];
-    this.edenRef.forEach(obj => {
-      obj.age++;
-      if (obj.age >= config.MaxTenuringThreshold) {
-        obj.generation = 'old';
-        this.oldGenRef.push(obj);
-      } else {
-        survivors.push(obj);
-      }
-    });
-    
-    this.edenRef = survivors;
-
-    // Cleanup dead objects from global map
-    const newAliveCount = reachableIds.size;
-    let deadObjCount = this.objects.size - newAliveCount;
-
-    this.objects.forEach(obj => {
-      if (!reachableIds.has(obj.id)) {
-        this.objects.delete(obj.id);
-      }
-    });
-
-    const duration = Math.round(performance.now() - startTime);
-
-    useJVMStore.getState().addEvent(
-      'Minor GC', 
-      `Cleaned ${deadObjCount} objects, promoted ${preS0 - postS0} to Old Gen`, 
-      duration
-    );
-
-    // Simulate STW holding for visual purposes (200ms)
-    setTimeout(() => {
-       useJVMStore.getState().setSafepoint(false);
-    }, 200 + (Math.random() * 300));
   }
 
-  publishMetrics() {
-    const state = useJVMStore.getState();
-    const edenCurrentSize = this.edenRef.reduce((acc, obj) => acc + obj.size, 0);
-    const oldCurrentSize = this.oldGenRef.reduce((acc, obj) => acc + obj.size, 0);
-
-    state.updateMetrics({
-      edenUsed: edenCurrentSize, // MB pseudo unit
-      oldGenUsed: oldCurrentSize,
-      heapUsed: edenCurrentSize + oldCurrentSize,
-      objectsAlive: this.objects.size,
-      objectsDead: state.metrics.objectsDead + (Math.random() > 0.6 ? 1 : 0), // Fake increasing dead counter historically
-    });
+  leakStatic(count: number = 20) {
+    for (let i = 0; i < count; i++) {
+      const id = this.allocate('StaticLeakObject', 16);
+      const obj = this.objects.get(id);
+      if (obj) obj.isRoot = true; // Permanently root it
+    }
+    useJVMStore.getState().addEvent('WARN', `Static leak triggered: ${count} objects rooted`, 0);
   }
 }
 
 export const instance = new JVMEngine();
+
+

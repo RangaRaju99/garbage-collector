@@ -144,25 +144,115 @@ class RequestProcessor {
     description: 'A HashMap used as cache with no eviction. Grows forever until OOM.',
     badCode: `// ❌ MEMORY LEAK
 class ImageCache {
-  // HashMap holds strong ref to all images FOREVER
-  private Map<String, BufferedImage> cache = 
-    new HashMap<>();
-    
+  private Map<String, BufferedImage> cache = new HashMap<>();
   BufferedImage get(String path) {
-    return cache.computeIfAbsent(path, 
-      p -> loadFromDisk(p));
+    return cache.computeIfAbsent(path, p -> loadFromDisk(p));
   }
 }`,
-    fixCode: `// ✅ FIXED (WeakHashMap or bounded LRU)
+    fixCode: `// ✅ FIXED
 class ImageCache {
-  // WeakHashMap: entries evicted when key GC'd
-  private Map<String, BufferedImage> cache = 
-    new WeakHashMap<>();
-  // OR: bounded LRU with Caffeine/Guava:
-  // Cache<String, BufferedImage> lru = 
-  //   Caffeine.newBuilder().maximumSize(500).build();
+  // Use a proper LRU cache
+  private Cache<String, BufferedImage> cache = 
+    Caffeine.newBuilder().maximumSize(100).build();
 }`,
-    explanation: "Without eviction, every cached image stays alive forever. WeakHashMap allows entries to be collected when the key has no other strong references. For production, use a proper cache library with TTL and max-size.",
+    explanation: "Standard HashMaps have no eviction policy. Every entry added stays in memory until the map itself is cleared or collected. For caches, always use bounded collections or specialized libraries like Caffeine/Guava.",
+  },
+  {
+    id: 6,
+    title: 'Inner Class Leak',
+    type: 'Heap Space',
+    description: 'Anonymous Runnable holds an implicit reference to the outer Activity/Controller, preventing its collection.',
+    badCode: `// ❌ MEMORY LEAK
+public class TaskController {
+  void start() {
+    new Thread(new Runnable() {
+      public void run() {
+        while(true) { /* Do work */ }
+      }
+    }).start(); // Keeps TaskController alive!
+  }
+}`,
+    fixCode: `// ✅ FIXED
+public class TaskController {
+  // Use static inner class to break 'this' reference
+  static class MyTask implements Runnable {
+    public void run() { ... }
+  }
+}`,
+    explanation: "Non-static inner classes and anonymous classes hold an implicit reference to their outer class. If the inner object (like a long-running Thread) lives longer than the outer object, the outer object is leaked.",
+  },
+  {
+    id: 7,
+    title: 'Spring Prototype Leak',
+    type: 'Heap Space',
+    description: 'A prototype bean is injected into a singleton and never destroyed by the container.',
+    badCode: `// ❌ MEMORY LEAK
+@Component
+public class SingletonService {
+  @Autowired 
+  private PrototypeBean bean; // Injected once, lived forever
+}`,
+    fixCode: `// ✅ FIXED
+@Component
+public class SingletonService {
+  @Lookup // Spring creates a new instance on every call
+  public PrototypeBean getBean() { return null; }
+}`,
+    explanation: "When a prototype bean is injected into a singleton, it is only created once at startup. If you need a fresh prototype instance each time, you must use Method Injection (@Lookup) or ObjectProvider.",
+  },
+  {
+    id: 8,
+    title: 'JDBC Connection Leak',
+    type: 'Native Threads',
+    description: 'Connections are never returned to the pool because close() is missed after an exception.',
+    badCode: `// ❌ MEMORY LEAK
+void loadData() throws SQLException {
+  Connection c = dataSource.getConnection();
+  ResultSet rs = c.createStatement().executeQuery("...");
+  // If exception happens here, c.close() is never called
+  c.close();
+}`,
+    fixCode: `// ✅ FIXED
+void loadData() throws SQLException {
+  try (Connection c = dataSource.getConnection()) {
+    // try-with-resources handles auto-close
+  }
+}`,
+    explanation: "Native resources like database connections must be closed explicitly. Using try-with-resources ensures the connection is returned to the pool even if an exception occurs during execution.",
+  },
+  {
+    id: 9,
+    title: 'Hibernate Session Cache',
+    type: 'Heap Space',
+    description: 'Processing 100,000 entities in a single transaction; the Session cache grows to OOM.',
+    badCode: `// ❌ MEMORY LEAK
+for (int i = 0; i < 100000; i++) {
+  User user = new User(i);
+  session.save(user); // All 100k held in Session cache!
+}`,
+    fixCode: `// ✅ FIXED
+for (int i = 0; i < 100000; i++) {
+  session.save(new User(i));
+  if (i % 50 == 0) {
+    session.flush(); session.clear(); // Clear first-level cache
+  }
+}`,
+    explanation: "Hibernate's first-level cache (the Session) tracks all objects in the current transaction. When doing bulk updates, you must periodically flush and clear the session to prevent it from consuming all heap memory.",
+  },
+  {
+    id: 10,
+    title: 'Kubernetes OOM Kill',
+    type: 'OS Signal',
+    description: 'JVM exceeds container limits. Linux OOM Killer sends SIGKILL 9.',
+    badCode: `// ❌ CONFIG LEAK
+// Container Limit: 1GB
+// JVM: -Xmx1g
+// (JVM crashes because Metaspace + Stacks need room too!)`,
+    fixCode: `// ✅ FIXED
+// Container Limit: 1GB
+// JVM: -Xmx768m
+// (Remaining 256MB for non-heap native memory)`,
+    explanation: "A JVM process uses significantly more memory than just the heap. If you set -Xmx equal to the container limit, the extra memory used by Metaspace, threads, and the JIT will push the process over the edge, causing a SIGKILL.",
   },
 ];
 
